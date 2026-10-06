@@ -1,0 +1,6 @@
+{
+  "name": "Sistema de Cadastro Escoteiro - G.E.T. 22 de Fevereiro",
+  "description": "Sistema de cadastro, ficha médica individual e dashboard analítico para o Grupo Escoteiro Tradicional 22 de Fevereiro de Franca/SP.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
