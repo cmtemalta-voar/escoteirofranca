@@ -13,13 +13,22 @@ import {
   KeyRound
 } from 'lucide-react';
 import { ScoutLogo } from './ScoutLogo';
+import { UsuarioSistema } from '../types/auth';
+import { storageService } from '../services/storage';
 
 interface HomeViewProps {
   onNovoCadastro: () => void;
-  onLoginSuccess: () => void;
+  onLoginSuccess: (usuario: UsuarioSistema) => void;
+  onLogout?: () => void;
+  usuarioAtual?: UsuarioSistema | null;
 }
 
-export const HomeView: React.FC<HomeViewProps> = ({ onNovoCadastro, onLoginSuccess }) => {
+export const HomeView: React.FC<HomeViewProps> = ({ 
+  onNovoCadastro, 
+  onLoginSuccess,
+  onLogout,
+  usuarioAtual
+}) => {
   const [usuario, setUsuario] = useState('');
   const [senha, setSenha] = useState('');
   const [mostrarSenha, setMostrarSenha] = useState(false);
@@ -27,28 +36,19 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNovoCadastro, onLoginSucce
   const [erroLogin, setErroLogin] = useState('');
   const [sucessoLogin, setSucessoLogin] = useState(false);
   
-  // Verifica se já está autenticado no localStorage
-  const [isAutenticado, setIsAutenticado] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('get_22_auth_session') === 'true';
-    } catch {
-      return false;
-    }
+  // Verifica se já está autenticado
+  const [sessao, setSessao] = useState<UsuarioSistema | null>(() => {
+    return usuarioAtual || storageService.obterSessaoAtual();
   });
 
-  const [usuarioLogado, setUsuarioLogado] = useState<string>(() => {
-    try {
-      return localStorage.getItem('get_22_auth_user') || 'Dirigente Geral';
-    } catch {
-      return 'Dirigente Geral';
-    }
-  });
+  const isAutenticado = !!(usuarioAtual || sessao);
+  const usuarioLogado = usuarioAtual ? usuarioAtual.nome : (sessao ? sessao.nome : 'Dirigente Geral');
 
   useEffect(() => {
-    if (isAutenticado) {
-      setSucessoLogin(false);
+    if (usuarioAtual) {
+      setSessao(usuarioAtual);
     }
-  }, [isAutenticado]);
+  }, [usuarioAtual]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,51 +64,36 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNovoCadastro, onLoginSucce
       return;
     }
 
-    // Validação flexível e amigável para dirigentes e chefia
-    // Aceita qualquer senha com mais de 2 dígitos ou as senhas padrão: 'semprealerta', 'admin', '123456'
-    if (senha.length < 3) {
-      setErroLogin('A senha deve conter ao menos 3 caracteres.');
+    const resultado = storageService.autenticarUsuario(usuario.trim(), senha.trim());
+
+    if (!resultado.sucesso || !resultado.usuario) {
+      setErroLogin(resultado.mensagem || 'Credenciais inválidas. Verifique seu login e senha.');
       return;
     }
 
-    const nomeFormatado = usuario.trim().toLowerCase().includes('admin') 
-      ? 'Dirigente Geral (Administrador)' 
-      : usuario.trim();
-
-    try {
-      if (lembrar) {
-        localStorage.setItem('get_22_auth_session', 'true');
-        localStorage.setItem('get_22_auth_user', nomeFormatado);
-      }
-    } catch (err) {
-      console.warn('Erro ao salvar sessão local:', err);
-    }
-
-    setIsAutenticado(true);
-    setUsuarioLogado(nomeFormatado);
+    const userAutenticado = resultado.usuario;
+    setSessao(userAutenticado);
     setSucessoLogin(true);
 
     setTimeout(() => {
-      onLoginSuccess();
-    }, 800);
+      onLoginSuccess(userAutenticado);
+    }, 600);
   };
 
   const handleLogout = () => {
-    try {
-      localStorage.removeItem('get_22_auth_session');
-      localStorage.removeItem('get_22_auth_user');
-    } catch (err) {
-      console.warn('Erro ao remover sessão:', err);
-    }
-    setIsAutenticado(false);
+    storageService.definirSessaoAtual(null);
+    setSessao(null);
     setUsuario('');
     setSenha('');
     setSucessoLogin(false);
+    if (onLogout) {
+      onLogout();
+    }
   };
 
   const preencherAcessoRapido = () => {
-    setUsuario('chefia@22fevereiro.org');
-    setSenha('semprealerta');
+    setUsuario('cmte.malta@gmail.com');
+    setSenha('@f@m2lt2');
     setErroLogin('');
   };
 
@@ -160,7 +145,11 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNovoCadastro, onLoginSucce
             <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
               <button
                 type="button"
-                onClick={onLoginSuccess}
+                onClick={() => {
+                  if (sessao || usuarioAtual) {
+                    onLoginSuccess(sessao || usuarioAtual!);
+                  }
+                }}
                 className="w-full sm:w-auto px-6 py-3 bg-emerald-850 hover:bg-emerald-900 active:bg-emerald-950 text-white font-bold text-sm rounded-xl shadow-lg shadow-emerald-950/20 flex items-center justify-center gap-2 transition-all active:scale-98"
               >
                 <span>Acessar Painel de Gestão</span>
@@ -219,7 +208,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNovoCadastro, onLoginSucce
                     type="text"
                     value={usuario}
                     onChange={(e) => setUsuario(e.target.value)}
-                    placeholder="Ex: chefia ou dirigente@22fevereiro.org"
+                    placeholder="Ex: cmte.malta@gmail.com ou admin"
                     className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 text-stone-800 text-sm transition outline-none"
                     autoComplete="username"
                   />
@@ -270,7 +259,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNovoCadastro, onLoginSucce
                   className="text-emerald-800 hover:text-emerald-950 font-semibold hover:underline flex items-center gap-1"
                 >
                   <KeyRound className="w-3 h-3 text-amber-500" />
-                  <span>Acesso Rápido Chefia</span>
+                  <span>Acesso Rápido Admin</span>
                 </button>
               </div>
 

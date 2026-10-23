@@ -14,6 +14,7 @@ import {
   INICIAL_PARTICIPACOES,
   INICIAL_UNIFORMES
 } from '../data/initialManagementData';
+import { UsuarioSistema, PermissaoModulo } from '../types/auth';
 
 const STORAGE_KEY = 'get_22_fevereiro_escoteiros_db';
 const KEY_CONTRIBUICOES = 'get_22_fevereiro_contribuicoes_db';
@@ -21,6 +22,86 @@ const KEY_FILIACOES = 'get_22_fevereiro_filiacoes_db';
 const KEY_EVENTOS = 'get_22_fevereiro_eventos_db';
 const KEY_PARTICIPACOES = 'get_22_fevereiro_participacoes_db';
 const KEY_UNIFORMES = 'get_22_fevereiro_uniformes_db';
+const KEY_USUARIOS = 'get_22_fevereiro_usuarios_db';
+const KEY_SESSAO_ATIVA = 'get_22_fevereiro_sessao_ativa';
+
+export const USUARIOS_INICIAIS: UsuarioSistema[] = [
+  {
+    id: 'user-admin-malta',
+    nome: 'Cmte. Malta',
+    login: 'cmte.malta@gmail.com',
+    senha: '@f@m2lt2',
+    cargo: 'Comandante / Administrador Geral',
+    isAdmin: true,
+    permissoes: [
+      'dashboard',
+      'novo',
+      'lista',
+      'financeiro',
+      'eventos',
+      'uniformes',
+      'impressao',
+      'database',
+      'usuarios'
+    ],
+    ativo: true,
+    criadoEm: '2026-01-01T08:00:00.000Z',
+  },
+  {
+    id: 'user-admin-principal',
+    nome: 'Diretoria Geral (Administrador)',
+    login: 'admin',
+    senha: 'semprealerta',
+    cargo: 'Diretor Presidente / Geral',
+    isAdmin: true,
+    permissoes: [
+      'dashboard',
+      'novo',
+      'lista',
+      'financeiro',
+      'eventos',
+      'uniformes',
+      'impressao',
+      'database',
+      'usuarios'
+    ],
+    ativo: true,
+    criadoEm: '2026-01-01T08:00:00.000Z',
+  },
+  {
+    id: 'user-chefia-secoes',
+    nome: 'Chefe de Ramo / Tropa',
+    login: 'chefia',
+    senha: 'semprealerta',
+    cargo: 'Chefia de Seção (Lobo / Escoteiro / Sênior / Pioneiro)',
+    isAdmin: false,
+    permissoes: ['dashboard', 'novo', 'lista', 'eventos', 'impressao'],
+    ativo: true,
+    criadoEm: '2026-01-01T08:00:00.000Z',
+  },
+  {
+    id: 'user-tesouraria',
+    nome: 'Tesouraria do Grupo',
+    login: 'tesouraria',
+    senha: 'semprealerta',
+    cargo: 'Diretoria Financeira',
+    isAdmin: false,
+    permissoes: ['dashboard', 'financeiro', 'uniformes'],
+    ativo: true,
+    criadoEm: '2026-01-01T08:00:00.000Z',
+  },
+  {
+    id: 'user-secretaria',
+    nome: 'Secretaria & Matrículas',
+    login: 'secretaria',
+    senha: 'semprealerta',
+    cargo: 'Secretaria do Grupo',
+    isAdmin: false,
+    permissoes: ['dashboard', 'novo', 'lista', 'impressao'],
+    ativo: true,
+    criadoEm: '2026-01-01T08:00:00.000Z',
+  }
+];
 
 export const storageService = {
   getEscoteiros(): EscoteiroCadastro[] {
@@ -501,5 +582,207 @@ export const storageService = {
     const filtrado = list.filter(u => u.id !== id);
     localStorage.setItem(KEY_UNIFORMES, JSON.stringify(filtrado));
     return filtrado.length < list.length;
+  },
+
+  /* ========================================================================= */
+  /* GESTÃO DE USUÁRIOS & CONTROLE DE ACESSO                                   */
+  /* ========================================================================= */
+  getUsuarios(): UsuarioSistema[] {
+    try {
+      const data = localStorage.getItem(KEY_USUARIOS);
+      let parsed: UsuarioSistema[] = [];
+      if (!data) {
+        localStorage.setItem(KEY_USUARIOS, JSON.stringify(USUARIOS_INICIAIS));
+        return [...USUARIOS_INICIAIS];
+      }
+      const raw = JSON.parse(data);
+      if (!Array.isArray(raw) || raw.length === 0) {
+        localStorage.setItem(KEY_USUARIOS, JSON.stringify(USUARIOS_INICIAIS));
+        return [...USUARIOS_INICIAIS];
+      }
+      parsed = raw;
+
+      // Assegurar que o usuário Administrador cmte.malta@gmail.com exista e esteja atualizado com senha @f@m2lt2
+      const maltaIndex = parsed.findIndex(
+        u => u.login.trim().toLowerCase() === 'cmte.malta@gmail.com'
+      );
+
+      let sincronizou = false;
+      if (maltaIndex === -1) {
+        parsed.unshift({
+          id: 'user-admin-malta',
+          nome: 'Cmte. Malta',
+          login: 'cmte.malta@gmail.com',
+          senha: '@f@m2lt2',
+          cargo: 'Comandante / Administrador Geral',
+          isAdmin: true,
+          permissoes: [
+            'dashboard',
+            'novo',
+            'lista',
+            'financeiro',
+            'eventos',
+            'uniformes',
+            'impressao',
+            'database',
+            'usuarios'
+          ],
+          ativo: true,
+          criadoEm: '2026-01-01T08:00:00.000Z',
+        });
+        sincronizou = true;
+      } else {
+        const u = parsed[maltaIndex];
+        if (u.senha !== '@f@m2lt2' || !u.isAdmin || !u.ativo) {
+          u.senha = '@f@m2lt2';
+          u.isAdmin = true;
+          u.ativo = true;
+          u.permissoes = [
+            'dashboard',
+            'novo',
+            'lista',
+            'financeiro',
+            'eventos',
+            'uniformes',
+            'impressao',
+            'database',
+            'usuarios'
+          ];
+          sincronizou = true;
+        }
+      }
+
+      if (sincronizou) {
+        localStorage.setItem(KEY_USUARIOS, JSON.stringify(parsed));
+      }
+
+      return parsed;
+    } catch {
+      return USUARIOS_INICIAIS;
+    }
+  },
+
+  salvarUsuario(usuario: Omit<UsuarioSistema, 'id' | 'criadoEm'> & { id?: string }): UsuarioSistema {
+    const list = this.getUsuarios();
+    const agora = new Date().toISOString();
+
+    if (usuario.id) {
+      const index = list.findIndex(u => u.id === usuario.id);
+      if (index !== -1) {
+        const atualizado: UsuarioSistema = {
+          ...list[index],
+          ...usuario,
+          id: usuario.id,
+        };
+        list[index] = atualizado;
+        localStorage.setItem(KEY_USUARIOS, JSON.stringify(list));
+
+        // Se o usuário editado for a sessão atual, atualiza a sessão
+        const sessao = this.obterSessaoAtual();
+        if (sessao && sessao.id === atualizado.id) {
+          this.definirSessaoAtual(atualizado);
+        }
+
+        return atualizado;
+      }
+    }
+
+    const novo: UsuarioSistema = {
+      ...usuario,
+      id: usuario.id || `user-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      criadoEm: agora,
+    };
+    list.push(novo);
+    localStorage.setItem(KEY_USUARIOS, JSON.stringify(list));
+    return novo;
+  },
+
+  excluirUsuario(id: string): { sucesso: boolean; mensagem?: string } {
+    const list = this.getUsuarios();
+    const usuarioParaExcluir = list.find(u => u.id === id);
+
+    if (!usuarioParaExcluir) {
+      return { sucesso: false, mensagem: 'Usuário não encontrado.' };
+    }
+
+    // Não permite excluir o único administrador do sistema
+    const totalAdmins = list.filter(u => u.isAdmin && u.ativo).length;
+    if (usuarioParaExcluir.isAdmin && totalAdmins <= 1) {
+      return { 
+        sucesso: false, 
+        mensagem: 'Não é permitido excluir o único Administrador ativo do sistema. Crie outro administrador antes.' 
+      };
+    }
+
+    // Não permite excluir o usuário logado atualmente
+    const sessao = this.obterSessaoAtual();
+    if (sessao && sessao.id === id) {
+      return {
+        sucesso: false,
+        mensagem: 'Você não pode excluir sua própria conta enquanto estiver conectado.'
+      };
+    }
+
+    const filtrado = list.filter(u => u.id !== id);
+    localStorage.setItem(KEY_USUARIOS, JSON.stringify(filtrado));
+    return { sucesso: true };
+  },
+
+  autenticarUsuario(loginOuEmail: string, senhaDigitada: string): { sucesso: boolean; usuario?: UsuarioSistema; mensagem?: string } {
+    const list = this.getUsuarios();
+    const termo = loginOuEmail.trim().toLowerCase();
+
+    // Busca por login ou por e-mail ignorando maiúsculas/minúsculas e espaços
+    const encontrado = list.find(u => 
+      u.login.trim().toLowerCase() === termo && u.ativo
+    );
+
+    if (!encontrado) {
+      return { sucesso: false, mensagem: 'Usuário não encontrado ou inativo.' };
+    }
+
+    if (encontrado.senha !== senhaDigitada) {
+      return { sucesso: false, mensagem: 'Senha incorreta. Tente novamente.' };
+    }
+
+    // Atualiza data do último acesso
+    encontrado.ultimoAcesso = new Date().toISOString();
+    localStorage.setItem(KEY_USUARIOS, JSON.stringify(list));
+
+    // Salva na sessão ativa
+    this.definirSessaoAtual(encontrado);
+
+    return { sucesso: true, usuario: encontrado };
+  },
+
+  obterSessaoAtual(): UsuarioSistema | null {
+    try {
+      const data = localStorage.getItem(KEY_SESSAO_ATIVA);
+      if (!data) return null;
+      return JSON.parse(data);
+    } catch {
+      return null;
+    }
+  },
+
+  definirSessaoAtual(usuario: UsuarioSistema | null): void {
+    try {
+      if (usuario) {
+        localStorage.setItem(KEY_SESSAO_ATIVA, JSON.stringify(usuario));
+        localStorage.setItem('get_22_auth_session', 'true');
+        localStorage.setItem('get_22_auth_user', usuario.nome);
+      } else {
+        localStorage.removeItem(KEY_SESSAO_ATIVA);
+        localStorage.removeItem('get_22_auth_session');
+        localStorage.removeItem('get_22_auth_user');
+      }
+    } catch (e) {
+      console.warn('Erro ao atualizar sessão:', e);
+    }
+  },
+
+  redefinirUsuariosPadrao(): UsuarioSistema[] {
+    localStorage.setItem(KEY_USUARIOS, JSON.stringify(USUARIOS_INICIAIS));
+    return USUARIOS_INICIAIS;
   }
 };

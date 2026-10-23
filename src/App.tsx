@@ -20,9 +20,15 @@ import { UniformesManager } from './components/UniformesManager';
 import { PainelDirigenteModal } from './components/PainelDirigenteModal';
 import { ExportModal } from './components/ExportModal';
 import { HomeView } from './components/HomeView';
+import { UsuariosManager } from './components/UsuariosManager';
+import { UsuarioSistema } from './types/auth';
 import { CheckCircle2, ShieldCheck, Heart } from 'lucide-react';
 
 export default function App() {
+  const [usuarioAtual, setUsuarioAtual] = useState<UsuarioSistema | null>(() => {
+    return storageService.obterSessaoAtual();
+  });
+
   const [escoteiros, setEscoteiros] = useState<EscoteiroCadastro[]>(() => {
     return storageService.getEscoteiros();
   });
@@ -85,12 +91,45 @@ export default function App() {
     setTimeout(() => setToast(null), 3500);
   };
 
+  const canAccessTab = useCallback((tab: TabType): boolean => {
+    if (tab === 'home' || tab === 'novo') return true;
+    if (!usuarioAtual) return false;
+    if (usuarioAtual.isAdmin) return true;
+    return usuarioAtual.permissoes ? usuarioAtual.permissoes.includes(tab as any) : false;
+  }, [usuarioAtual]);
+
+  useEffect(() => {
+    if (!canAccessTab(currentTab)) {
+      setCurrentTab('home');
+    }
+  }, [currentTab, canAccessTab]);
+
+  const handleLoginSuccess = (user: UsuarioSistema) => {
+    setUsuarioAtual(user);
+    if (user.isAdmin || user.permissoes?.includes('dashboard')) {
+      setCurrentTab('dashboard');
+    } else if (user.permissoes && user.permissoes.length > 0) {
+      setCurrentTab(user.permissoes[0] as TabType);
+    } else {
+      setCurrentTab('home');
+    }
+    showToast(`Bem-vindo(a), ${user.nome}! Sessão autorizada.`);
+  };
+
+  const handleLogout = () => {
+    storageService.definirSessaoAtual(null);
+    setUsuarioAtual(null);
+    setCurrentTab('home');
+    showToast('Sessão encerrada com sucesso.');
+  };
+
   const handleNovoCadastro = () => {
     setEditingEscoteiro(null);
     setCurrentTab('novo');
   };
 
   const handleEditEscoteiro = (esc: EscoteiroCadastro) => {
+    if (!usuarioAtual) return;
     setEditingEscoteiro(esc);
     setCurrentTab('novo');
   };
@@ -98,10 +137,20 @@ export default function App() {
   const handleSalvarCadastro = (dados: EscoteiroCadastro) => {
     const salvo = storageService.salvarEscoteiro(dados);
     refreshData();
-    setSelectedEscoteiro(salvo);
     setEditingEscoteiro(null);
-    setCurrentTab('lista');
-    showToast(`Ficha de ${salvo.nomeCompleto} salva com sucesso no banco de dados!`);
+
+    if (usuarioAtual) {
+      setSelectedEscoteiro(salvo);
+      if (canAccessTab('lista')) {
+        setCurrentTab('lista');
+      } else {
+        setCurrentTab('home');
+      }
+      showToast(`Ficha de ${salvo.nomeCompleto} salva com sucesso no banco de dados!`);
+    } else {
+      setCurrentTab('home');
+      showToast(`Inscrição enviada com sucesso! A Diretoria do G.E.T. entrará em contato.`);
+    }
   };
 
   const handleDeleteEscoteiro = (id: string) => {
@@ -163,6 +212,8 @@ export default function App() {
         }}
         totalCadastros={escoteiros.length}
         onNovoCadastro={handleNovoCadastro}
+        usuarioAtual={usuarioAtual}
+        onLogout={handleLogout}
       />
 
       {/* Toast Notification */}
@@ -180,15 +231,14 @@ export default function App() {
         {currentTab === 'home' && (
           <HomeView
             onNovoCadastro={handleNovoCadastro}
-            onLoginSuccess={() => {
-              setCurrentTab('dashboard');
-              showToast('Login realizado com sucesso! Bem-vindo(a) ao painel.');
-            }}
+            onLoginSuccess={handleLoginSuccess}
+            onLogout={handleLogout}
+            usuarioAtual={usuarioAtual}
           />
         )}
 
         {/* 1. DASHBOARD GERAL COM ANIVERSARIANTES & ATALHOS */}
-        {currentTab === 'dashboard' && (
+        {currentTab === 'dashboard' && canAccessTab('dashboard') && (
           <Dashboard
             escoteiros={escoteiros}
             contribuicoes={contribuicoes}
@@ -207,18 +257,18 @@ export default function App() {
         {/* 2. CADASTRO / EDIÇÃO */}
         {currentTab === 'novo' && (
           <RegistrationForm
-            initialData={editingEscoteiro}
+            initialData={usuarioAtual ? editingEscoteiro : null}
             onSave={handleSalvarCadastro}
             onCancel={() => {
               setEditingEscoteiro(null);
-              setCurrentTab('lista');
+              setCurrentTab(usuarioAtual && canAccessTab('lista') ? 'lista' : 'home');
             }}
             onPrint={handleImprimirEscoteiro}
           />
         )}
 
         {/* 3. LISTAGEM DE ASSOCIADOS */}
-        {currentTab === 'lista' && (
+        {currentTab === 'lista' && canAccessTab('lista') && (
           <ScoutList
             escoteiros={escoteiros}
             onSelectEscoteiro={handleSelectEscoteiro}
@@ -232,7 +282,7 @@ export default function App() {
         )}
 
         {/* 4. CONTROLE DE CONTRIBUIÇÕES E FILIAÇÃO ANUAL */}
-        {currentTab === 'financeiro' && (
+        {currentTab === 'financeiro' && canAccessTab('financeiro') && (
           <FinanceiroManager
             escoteiros={escoteiros}
             contribuicoes={contribuicoes}
@@ -243,7 +293,7 @@ export default function App() {
         )}
 
         {/* 5. GESTÃO DE EVENTOS ESCOTEIROS & PARTICIPAÇÕES */}
-        {currentTab === 'eventos' && (
+        {currentTab === 'eventos' && canAccessTab('eventos') && (
           <EventosManager
             escoteiros={escoteiros}
             eventos={eventos}
@@ -254,7 +304,7 @@ export default function App() {
         )}
 
         {/* 6. CONTROLE DE UNIFORMES E MATERIAIS FORNECIDOS */}
-        {currentTab === 'uniformes' && (
+        {currentTab === 'uniformes' && canAccessTab('uniformes') && (
           <UniformesManager
             escoteiros={escoteiros}
             uniformes={uniformes}
@@ -264,7 +314,7 @@ export default function App() {
         )}
 
         {/* 7. FICHA OFICIAL (IMPRESSÃO 4 PÁGINAS) */}
-        {currentTab === 'impressao' && (
+        {currentTab === 'impressao' && canAccessTab('impressao') && (
           selectedEscoteiro ? (
             <OfficialSheetView
               escoteiro={selectedEscoteiro}
@@ -286,11 +336,20 @@ export default function App() {
         )}
 
         {/* 8. BANCO DE DADOS & BACKUP */}
-        {currentTab === 'database' && (
+        {currentTab === 'database' && canAccessTab('database') && (
           <DatabaseManager
             escoteiros={escoteiros}
             onRefresh={refreshData}
             onExportarCSV={handleExportarCSV}
+          />
+        )}
+
+        {/* 9. GESTÃO DE USUÁRIOS & PERMISSÕES (ADMINISTRADORES) */}
+        {currentTab === 'usuarios' && usuarioAtual?.isAdmin && (
+          <UsuariosManager
+            usuarioAtual={usuarioAtual}
+            onRefreshAuth={() => setUsuarioAtual(storageService.obterSessaoAtual())}
+            showToast={showToast}
           />
         )}
       </main>

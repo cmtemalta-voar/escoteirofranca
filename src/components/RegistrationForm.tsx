@@ -3065,7 +3065,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
                 className="w-full sm:w-auto px-6 py-3.5 sm:py-2.5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-emerald-950 text-sm font-extrabold rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
               >
                 <Save className="w-4 h-4 text-emerald-950 stroke-[2.5]" />
-                <span>{salvando ? 'Gravando no Banco...' : initialData ? 'Salvar Alterações' : 'Concluir Cadastro no Banco'}</span>
+                <span>{salvando ? 'Gravando Inscrição...' : initialData ? 'Salvar Alterações' : 'Finalizar e Enviar Inscrição'}</span>
               </button>
             )}
           </div>
