@@ -680,8 +680,40 @@ export const EventosManager: React.FC<EventosManagerProps> = ({
               </div>
             </>
           ) : (
-            <div className="bg-white p-12 text-center text-stone-400 rounded-2xl border border-stone-200">
-              Nenhum evento selecionado.
+            <div className="bg-white p-12 text-center rounded-2xl border border-stone-200 shadow-sm space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-800 mx-auto flex items-center justify-center">
+                <Tent className="w-7 h-7" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-stone-900 font-serif">Nenhum evento programado</h3>
+                <p className="text-xs sm:text-sm text-stone-500 max-w-md mx-auto mt-1">
+                  Cadastre acampamentos, jornadas ou atividades do Grupo Escoteiro Tradicional 22 de Fevereiro para controlar vagas, lista de chamada e financeiro.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditandoEvento(null);
+                  setFormEvento({
+                    nome: '',
+                    tipo: 'Acampamento',
+                    dataInicio: new Date().toISOString().split('T')[0],
+                    dataFim: new Date().toISOString().split('T')[0],
+                    local: 'Sede Franca / Local a definir',
+                    descricao: '',
+                    valorParticipacao: 120.00,
+                    dataLimitePagamento: new Date().toISOString().split('T')[0],
+                    responsavel: 'Chefia Responsável',
+                    vagas: 35,
+                    status: 'Aberto'
+                  });
+                  setModalEventoAberto(true);
+                }}
+                className="px-5 py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs sm:text-sm rounded-xl inline-flex items-center gap-2 shadow-sm transition"
+              >
+                <Plus className="w-4 h-4 text-amber-400" />
+                <span>+ Cadastrar Primeiro Evento</span>
+              </button>
             </div>
           )}
         </div>

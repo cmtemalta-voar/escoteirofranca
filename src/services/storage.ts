@@ -46,75 +46,61 @@ export const USUARIOS_INICIAIS: UsuarioSistema[] = [
     ],
     ativo: true,
     criadoEm: '2026-01-01T08:00:00.000Z',
-  },
-  {
-    id: 'user-admin-principal',
-    nome: 'Diretoria Geral (Administrador)',
-    login: 'admin',
-    senha: 'semprealerta',
-    cargo: 'Diretor Presidente / Geral',
-    isAdmin: true,
-    permissoes: [
-      'dashboard',
-      'novo',
-      'lista',
-      'financeiro',
-      'eventos',
-      'uniformes',
-      'impressao',
-      'database',
-      'usuarios'
-    ],
-    ativo: true,
-    criadoEm: '2026-01-01T08:00:00.000Z',
-  },
-  {
-    id: 'user-chefia-secoes',
-    nome: 'Chefe de Ramo / Tropa',
-    login: 'chefia',
-    senha: 'semprealerta',
-    cargo: 'Chefia de Seção (Lobo / Escoteiro / Sênior / Pioneiro)',
-    isAdmin: false,
-    permissoes: ['dashboard', 'novo', 'lista', 'eventos', 'impressao'],
-    ativo: true,
-    criadoEm: '2026-01-01T08:00:00.000Z',
-  },
-  {
-    id: 'user-tesouraria',
-    nome: 'Tesouraria do Grupo',
-    login: 'tesouraria',
-    senha: 'semprealerta',
-    cargo: 'Diretoria Financeira',
-    isAdmin: false,
-    permissoes: ['dashboard', 'financeiro', 'uniformes'],
-    ativo: true,
-    criadoEm: '2026-01-01T08:00:00.000Z',
-  },
-  {
-    id: 'user-secretaria',
-    nome: 'Secretaria & Matrículas',
-    login: 'secretaria',
-    senha: 'semprealerta',
-    cargo: 'Secretaria do Grupo',
-    isAdmin: false,
-    permissoes: ['dashboard', 'novo', 'lista', 'impressao'],
-    ativo: true,
-    criadoEm: '2026-01-01T08:00:00.000Z',
   }
 ];
+
+// Chave para purga automática de dados fictícios em clientes com sessões antigas
+const KEY_CLEAN_DATA_MIGRATED = 'get_22_fevereiro_purged_mock_v3';
+
+// Rotina de limpeza automática de dados fictícios na inicialização
+if (typeof window !== 'undefined') {
+  try {
+    const jaLimpou = localStorage.getItem(KEY_CLEAN_DATA_MIGRATED);
+    if (!jaLimpou) {
+      // Limpa dados de escoteiros, financeiro, eventos e materiais
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+      localStorage.setItem(KEY_CONTRIBUICOES, JSON.stringify([]));
+      localStorage.setItem(KEY_FILIACOES, JSON.stringify([]));
+      localStorage.setItem(KEY_EVENTOS, JSON.stringify([]));
+      localStorage.setItem(KEY_PARTICIPACOES, JSON.stringify([]));
+      localStorage.setItem(KEY_UNIFORMES, JSON.stringify([]));
+
+      // Mantém APENAS o usuário administrador geral completo
+      localStorage.setItem(KEY_USUARIOS, JSON.stringify(USUARIOS_INICIAIS));
+
+      // Se havia sessão antiga com usuário de teste, ajusta para Cmte. Malta
+      const sessaoRaw = localStorage.getItem(KEY_SESSAO_ATIVA);
+      if (sessaoRaw) {
+        try {
+          const sessao = JSON.parse(sessaoRaw);
+          if (sessao?.login !== 'cmte.malta@gmail.com') {
+            localStorage.setItem(KEY_SESSAO_ATIVA, JSON.stringify(USUARIOS_INICIAIS[0]));
+            localStorage.setItem('get_22_auth_session', 'true');
+            localStorage.setItem('get_22_auth_user', USUARIOS_INICIAIS[0].nome);
+          }
+        } catch {
+          localStorage.setItem(KEY_SESSAO_ATIVA, JSON.stringify(USUARIOS_INICIAIS[0]));
+        }
+      }
+
+      localStorage.setItem(KEY_CLEAN_DATA_MIGRATED, 'true');
+    }
+  } catch (err) {
+    console.warn('Erro ao purgar dados fictícios:', err);
+  }
+}
 
 export const storageService = {
   getEscoteiros(): EscoteiroCadastro[] {
     try {
       const data = localStorage.getItem(STORAGE_KEY);
       if (!data) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(DADOS_INICIAIS_FRANCA));
-        return DADOS_INICIAIS_FRANCA;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+        return [];
       }
       const parsed = JSON.parse(data);
       if (!Array.isArray(parsed) || parsed.length === 0) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(DADOS_INICIAIS_FRANCA));
-        return DADOS_INICIAIS_FRANCA;
+        return [];
       }
       return parsed.map((e: EscoteiroCadastro) => ({
         ...e,
@@ -132,7 +118,7 @@ export const storageService = {
       }));
     } catch (e) {
       console.error('Erro ao ler dados do localStorage:', e);
-      return DADOS_INICIAIS_FRANCA;
+      return [];
     }
   },
 
@@ -187,8 +173,19 @@ export const storageService = {
   },
 
   restaurarDadosPadrao(): EscoteiroCadastro[] {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(DADOS_INICIAIS_FRANCA));
-    return DADOS_INICIAIS_FRANCA;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+    return [];
+  },
+
+  limparTudoParaDadosReais(): void {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+    localStorage.setItem(KEY_CONTRIBUICOES, JSON.stringify([]));
+    localStorage.setItem(KEY_FILIACOES, JSON.stringify([]));
+    localStorage.setItem(KEY_EVENTOS, JSON.stringify([]));
+    localStorage.setItem(KEY_PARTICIPACOES, JSON.stringify([]));
+    localStorage.setItem(KEY_UNIFORMES, JSON.stringify([]));
+    localStorage.setItem(KEY_USUARIOS, JSON.stringify(USUARIOS_INICIAIS));
+    this.definirSessaoAtual(USUARIOS_INICIAIS[0]);
   },
 
   limparTodos(): void {
@@ -600,14 +597,25 @@ export const storageService = {
         localStorage.setItem(KEY_USUARIOS, JSON.stringify(USUARIOS_INICIAIS));
         return [...USUARIOS_INICIAIS];
       }
-      parsed = raw;
+
+      // Remover quaisquer usuários de teste fictícios que possam ter ficado em cache
+      const contasFicticias = ['admin', 'chefia', 'tesouraria', 'secretaria'];
+      const filtrado = raw.filter(
+        (u: any) => !contasFicticias.includes((u.login || '').trim().toLowerCase()) &&
+                    u.id !== 'user-admin-principal' &&
+                    u.id !== 'user-chefia-secoes' &&
+                    u.id !== 'user-tesouraria' &&
+                    u.id !== 'user-secretaria'
+      );
+
+      let sincronizou = filtrado.length !== raw.length;
+      parsed = filtrado;
 
       // Assegurar que o usuário Administrador cmte.malta@gmail.com exista e esteja atualizado com senha @f@m2lt2
       const maltaIndex = parsed.findIndex(
         u => u.login.trim().toLowerCase() === 'cmte.malta@gmail.com'
       );
 
-      let sincronizou = false;
       if (maltaIndex === -1) {
         parsed.unshift({
           id: 'user-admin-malta',

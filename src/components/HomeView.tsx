@@ -208,7 +208,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     type="text"
                     value={usuario}
                     onChange={(e) => setUsuario(e.target.value)}
-                    placeholder="Ex: cmte.malta@gmail.com ou admin"
+                    placeholder="Ex: cmte.malta@gmail.com"
                     className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-stone-300 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 text-stone-800 text-sm transition outline-none"
                     autoComplete="username"
                   />

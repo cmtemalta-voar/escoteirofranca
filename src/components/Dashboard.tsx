@@ -519,28 +519,34 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-              {stats.bairrosOrdenados.map((item, idx) => (
-                <div key={item.bairro} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs sm:text-sm">
-                    <div className="flex items-center gap-2 truncate">
-                      <span className="w-5 text-xs font-mono text-stone-400">{idx + 1}.</span>
-                      <span className="font-medium text-stone-800 truncate">{item.bairro}</span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs text-stone-400">{item.pct}%</span>
-                      <span className="font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded text-xs">
-                        {item.count} {item.count === 1 ? 'inscrito' : 'inscritos'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
-                    <div 
-                      className="bg-amber-600 h-full rounded-full transition-all duration-500"
-                      style={{ width: `${Math.max(item.pct, 4)}%` }}
-                    />
-                  </div>
+              {stats.bairrosOrdenados.length === 0 ? (
+                <div className="py-8 text-center text-stone-400 text-xs">
+                  Nenhum bairro registrado ainda. Cadastros realizados aparecerão aqui mapeados por região de Franca/SP.
                 </div>
-              ))}
+              ) : (
+                stats.bairrosOrdenados.map((item, idx) => (
+                  <div key={item.bairro} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs sm:text-sm">
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="w-5 text-xs font-mono text-stone-400">{idx + 1}.</span>
+                        <span className="font-medium text-stone-800 truncate">{item.bairro}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs text-stone-400">{item.pct}%</span>
+                        <span className="font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded text-xs">
+                          {item.count} {item.count === 1 ? 'inscrito' : 'inscritos'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
+                      <div 
+                        className="bg-amber-600 h-full rounded-full transition-all duration-500"
+                        style={{ width: `${Math.max(item.pct, 4)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -690,8 +696,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {escoteiros.slice(0, 5).map(esc => {
-                const idade = calcularIdade(esc.dataNascimento);
+              {escoteiros.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center">
+                    <p className="text-sm font-semibold text-stone-700">Nenhum jovem cadastrado ainda no sistema.</p>
+                    <p className="text-xs text-stone-400 mt-1">O banco de dados está pronto para inserção de dados reais.</p>
+                    <button
+                      onClick={onNovoCadastro}
+                      className="mt-3 px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs rounded-xl inline-flex items-center gap-1.5 shadow-sm"
+                    >
+                      <span>+ Cadastrar Primeiro Jovem</span>
+                    </button>
+                  </td>
+                </tr>
+              ) : (
+                escoteiros.slice(0, 5).map(esc => {
+                  const idade = calcularIdade(esc.dataNascimento);
                 const ramo = identificarRamo(idade);
 
                 return (
@@ -781,15 +801,26 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     </td>
                   </tr>
                 );
-              })}
+              }))}
             </tbody>
           </table>
         </div>
 
         {/* Mobile Feed View - No horizontal scroll required */}
         <div className="md:hidden divide-y divide-stone-100">
-          {escoteiros.slice(0, 5).map(esc => {
-            const idade = calcularIdade(esc.dataNascimento);
+          {escoteiros.length === 0 ? (
+            <div className="p-8 text-center text-stone-400">
+              <p className="text-sm font-semibold text-stone-700">Nenhum jovem cadastrado ainda.</p>
+              <button
+                onClick={onNovoCadastro}
+                className="mt-3 px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-bold text-xs rounded-xl inline-flex items-center gap-1.5 shadow-sm"
+              >
+                <span>+ Novo Cadastro</span>
+              </button>
+            </div>
+          ) : (
+            escoteiros.slice(0, 5).map(esc => {
+              const idade = calcularIdade(esc.dataNascimento);
             const ramo = identificarRamo(idade);
 
             return (
@@ -860,7 +891,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </div>
               </div>
             );
-          })}
+          }))}
         </div>
       </div>
     </div>

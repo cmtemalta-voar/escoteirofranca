@@ -171,11 +171,11 @@ export const UsuariosManager: React.FC<UsuariosManagerProps> = ({
   };
 
   const handleRestaurarPadroes = () => {
-    if (confirm('Deseja restaurar as contas padrão da chefia (Admin, Chefia, Tesouraria, Secretaria)? Usuários criados manualmente serão mantidos se não houver conflito de login.')) {
+    if (confirm('Deseja redefinir os acessos mantendo apenas a conta oficial do Administrador Geral Cmte. Malta (cmte.malta@gmail.com)?')) {
       storageService.redefinirUsuariosPadrao();
       recarregarUsuarios();
       if (onRefreshAuth) onRefreshAuth();
-      showToast('Contas de acesso padrão restauradas!');
+      showToast('Conta oficial do Administrador Cmte. Malta redefinida!');
     }
   };
 
@@ -214,10 +214,10 @@ export const UsuariosManager: React.FC<UsuariosManagerProps> = ({
             <button
               onClick={handleRestaurarPadroes}
               className="px-3.5 py-2.5 rounded-xl border border-stone-200 text-stone-700 hover:bg-stone-50 text-xs font-semibold flex items-center gap-1.5 transition"
-              title="Restaurar contas modelo do grupo"
+              title="Garantir acesso do Administrador Geral Cmte. Malta"
             >
               <RotateCcw className="w-4 h-4 text-stone-500" />
-              <span className="hidden sm:inline">Restaurar Padrões</span>
+              <span className="hidden sm:inline">Garantir Admin Geral</span>
             </button>
 
             <button

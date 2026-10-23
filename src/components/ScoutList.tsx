@@ -272,7 +272,26 @@ export const ScoutList: React.FC<ScoutListProps> = ({
       </div>
 
       {/* Scouts Presentation */}
-      {filtrados.length === 0 ? (
+      {escoteiros.length === 0 ? (
+        <div className="bg-white p-12 text-center rounded-2xl border border-stone-200/80 shadow-sm space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-800 mx-auto flex items-center justify-center">
+            <Users className="w-7 h-7" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-stone-900 font-serif">Nenhum escoteiro cadastrado ainda</h3>
+            <p className="text-xs sm:text-sm text-stone-500 max-w-md mx-auto mt-1">
+              O sistema está operando com banco de dados limpo para dados reais. Comece preenchendo a ficha de inscrição oficial para cadastrar os jovens do grupo.
+            </p>
+          </div>
+          <button
+            onClick={onNovoCadastro}
+            className="px-5 py-2.5 bg-emerald-800 hover:bg-emerald-900 active:bg-emerald-950 text-white text-xs sm:text-sm font-bold rounded-xl shadow-md inline-flex items-center gap-2 transition"
+          >
+            <UserPlus className="w-4 h-4 text-amber-400" />
+            <span>+ Cadastrar Primeiro Jovem</span>
+          </button>
+        </div>
+      ) : filtrados.length === 0 ? (
         <div className="bg-white p-12 text-center rounded-2xl border border-stone-200/80 shadow-sm space-y-3">
           <div className="w-12 h-12 rounded-full bg-stone-100 text-stone-400 mx-auto flex items-center justify-center">
             <Search className="w-6 h-6" />

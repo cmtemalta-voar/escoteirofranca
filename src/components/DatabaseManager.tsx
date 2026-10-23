@@ -77,21 +77,22 @@ export const DatabaseManager: React.FC<DatabaseManagerProps> = ({
     e.target.value = '';
   };
 
-  const handleRestaurarPadrao = () => {
-    if (window.confirm('Deseja restaurar os registros padrão de Franca/SP? Isso recarregará os cadastros de exemplo no banco de dados.')) {
-      storageService.restaurarDadosPadrao();
+  const handleLimparTudoParaDadosReais = () => {
+    if (window.confirm('Atenção: Deseja zerar completamente o sistema para operação com Dados Reais? Todos os registros serão apagados e apenas o usuário Administrador Cmte. Malta será mantido.')) {
+      storageService.limparTudoParaDadosReais();
       onRefresh();
-      setMensagem({ tipo: 'sucesso', texto: 'Base de dados restaurada com os cadastros de Franca/SP.' });
-      setTimeout(() => setMensagem(null), 3000);
+      setConfirmarLimpeza(false);
+      setMensagem({ tipo: 'sucesso', texto: 'Sistema resetado com sucesso para ambiente de Dados Reais com Administrador Cmte. Malta.' });
+      setTimeout(() => setMensagem(null), 3500);
     }
   };
 
   const handleLimparBanco = () => {
-    storageService.limparTodos();
+    storageService.limparTudoParaDadosReais();
     onRefresh();
     setConfirmarLimpeza(false);
-    setMensagem({ tipo: 'sucesso', texto: 'Banco de dados limpo com sucesso.' });
-    setTimeout(() => setMensagem(null), 3000);
+    setMensagem({ tipo: 'sucesso', texto: 'Banco de dados limpo com sucesso. Ambiente pronto para novos registros reais.' });
+    setTimeout(() => setMensagem(null), 3500);
   };
 
   return (
@@ -229,23 +230,23 @@ export const DatabaseManager: React.FC<DatabaseManagerProps> = ({
             </div>
           </div>
 
-          {/* Restaurar Demonstração Franca */}
-          <div className="p-5 rounded-xl border border-stone-200 bg-stone-50/50 space-y-3 flex flex-col justify-between">
+          {/* Zerar para Base de Dados Reais */}
+          <div className="p-5 rounded-xl border border-emerald-200 bg-emerald-50/40 space-y-3 flex flex-col justify-between">
             <div>
-              <div className="w-9 h-9 rounded-lg bg-stone-200 text-stone-800 flex items-center justify-center mb-2">
+              <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center mb-2">
                 <RotateCcw className="w-5 h-5" />
               </div>
-              <h4 className="text-sm font-bold text-stone-900">Restaurar Dados de Teste</h4>
+              <h4 className="text-sm font-bold text-stone-900">Base Limpa (Dados Reais)</h4>
               <p className="text-xs text-stone-500 mt-1">
-                Recarrega os dados completos com escoteiros de vários ramos e bairros de Franca/SP para testes.
+                Zera quaisquer dados residuais fictícios e mantém apenas a conta do Administrador Geral Cmte. Malta pronta para uso real.
               </p>
             </div>
             <button
-              onClick={handleRestaurarPadrao}
-              className="w-full py-2.5 px-4 bg-stone-200 hover:bg-stone-300 text-stone-800 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+              onClick={handleLimparTudoParaDadosReais}
+              className="w-full py-2.5 px-4 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
             >
               <RotateCcw className="w-4 h-4" />
-              <span>Restaurar Base de Franca/SP</span>
+              <span>Resetar para Dados Reais</span>
             </button>
           </div>
 
