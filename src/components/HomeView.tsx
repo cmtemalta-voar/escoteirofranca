@@ -6,7 +6,6 @@ import {
   User, 
   Eye, 
   EyeOff, 
-  ShieldCheck, 
   CheckCircle2, 
   ArrowRight, 
   LogOut,
@@ -125,13 +124,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNovoCadastro, onLoginSucce
           </div>
         </div>
 
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase bg-emerald-900/10 text-emerald-900 border border-emerald-800/20 mb-2">
-          <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-          Sempre Alerta • Fundado em Franca/SP
-        </span>
-
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-emerald-950 font-serif tracking-tight">
-          G.E.T. 22 de Fevereiro
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-emerald-950 font-serif tracking-tight">
+          G.E.T. <span className="text-4xl sm:text-5xl md:text-6xl font-black inline-block px-1">22</span> de Fevereiro
         </h1>
         <p className="text-xs sm:text-sm text-stone-600 font-medium mt-1">
           Grupo Escoteiro Tradicional 22 de Fevereiro — Franca/SP
