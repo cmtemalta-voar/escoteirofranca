@@ -132,9 +132,17 @@ export const PainelDirigenteModal: React.FC<PainelDirigenteModalProps> = ({
         {/* Header do Dossiê */}
         <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-stone-900 text-white p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-emerald-800/40">
           <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500 text-emerald-950 flex items-center justify-center font-bold text-xl shadow-md font-serif shrink-0">
-              {escoteiro.nomeCompleto.charAt(0)}
-            </div>
+            {escoteiro.foto ? (
+              <img 
+                src={escoteiro.foto} 
+                alt={escoteiro.nomeCompleto} 
+                className="w-14 h-14 rounded-2xl object-cover border-2 border-amber-400 shadow-md shrink-0" 
+              />
+            ) : (
+              <div className="w-12 h-12 rounded-2xl bg-amber-500 text-emerald-950 flex items-center justify-center font-bold text-xl shadow-md font-serif shrink-0">
+                {escoteiro.nomeCompleto.charAt(0)}
+              </div>
+            )}
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] sm:text-xs uppercase font-extrabold tracking-widest text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/30">

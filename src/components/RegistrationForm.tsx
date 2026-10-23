@@ -24,7 +24,13 @@ import {
   AlertCircle,
   ShieldCheck,
   CheckCircle2,
-  Copy
+  Copy,
+  Camera,
+  Upload,
+  Smartphone,
+  Video,
+  RefreshCw,
+  X
 } from 'lucide-react';
 
 interface RegistrationFormProps {
@@ -59,6 +65,16 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const [salvando, setSalvando] = useState<boolean>(false);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
 
+  // Estados para foto 3x4
+  const [processandoFoto, setProcessandoFoto] = useState<boolean>(false);
+  const [erroFoto, setErroFoto] = useState<string | null>(null);
+  const [modalWebcamAberta, setModalWebcamAberta] = useState<boolean>(false);
+  const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
+  
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const cameraInputRef = React.useRef<HTMLInputElement>(null);
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+
   // Form State
   const [form, setForm] = useState<EscoteiroCadastro>(() => {
     if (initialData) return initialData;
@@ -67,6 +83,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       id: '',
       criadoEm: '',
       atualizadoEm: '',
+      foto: '',
       nomeCompleto: '',
       sexo: 'M',
       dataNascimento: '',
@@ -431,6 +448,154 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     });
   };
 
+  // Processamento e compressão inteligente da foto 3x4 (Canvas HTML5)
+  const processarArquivoFoto = (file: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setErroFoto('Por favor, selecione um arquivo de imagem válido (JPG, PNG ou WEBP).');
+      return;
+    }
+
+    setProcessandoFoto(true);
+    setErroFoto(null);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          // Dimensões ideais para foto 3x4 (360 x 480 pixels)
+          const targetWidth = 360;
+          const targetHeight = 480;
+          const canvas = document.createElement('canvas');
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+          const ctx = canvas.getContext('2d');
+
+          if (!ctx) {
+            throw new Error('Falha ao abrir contexto canvas.');
+          }
+
+          // Crop centralizado proporcional para 3x4 com foco no rosto/terço superior
+          const imgRatio = img.width / img.height;
+          const targetRatio = targetWidth / targetHeight; // 0.75
+
+          let sx = 0;
+          let sy = 0;
+          let sWidth = img.width;
+          let sHeight = img.height;
+
+          if (imgRatio > targetRatio) {
+            // Imagem mais larga que 3x4 (crop horizontal centralizado)
+            sWidth = img.height * targetRatio;
+            sx = (img.width - sWidth) / 2;
+          } else {
+            // Imagem mais alta que 3x4 (crop vertical favorecendo o topo onde fica a cabeça)
+            sHeight = img.width / targetRatio;
+            sy = Math.max(0, (img.height - sHeight) * 0.25);
+          }
+
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, targetWidth, targetHeight);
+          ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, targetWidth, targetHeight);
+
+          // Gera JPEG de excelente nitidez e tamanho extremamente leve (~30KB)
+          const compressed = canvas.toDataURL('image/jpeg', 0.85);
+          setForm(prev => ({ ...prev, foto: compressed }));
+          setProcessandoFoto(false);
+          setFeedbackMsg('Foto 3x4 ajustada e salva com sucesso!');
+          setTimeout(() => setFeedbackMsg(null), 3000);
+        } catch (err) {
+          console.warn('Erro ao redimensionar foto, mantendo original:', err);
+          setForm(prev => ({ ...prev, foto: event.target?.result as string }));
+          setProcessandoFoto(false);
+        }
+      };
+      img.onerror = () => {
+        setErroFoto('Não foi possível ler a imagem. Tente outro arquivo.');
+        setProcessandoFoto(false);
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = () => {
+      setErroFoto('Erro ao carregar o arquivo da imagem.');
+      setProcessandoFoto(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Iniciar captura com Webcam (compatível com desktop e navegadores com suporte a câmera)
+  const iniciarWebcam = async () => {
+    try {
+      setErroFoto(null);
+      setModalWebcamAberta(true);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false
+      });
+      setWebcamStream(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(e => console.warn('Erro play video:', e));
+      }
+    } catch (err) {
+      console.warn('Acesso à webcam recusado ou indisponível:', err);
+      setErroFoto('Câmera indisponível no navegador. Use os botões "Tirar com o Celular" ou "Enviar da Galeria".');
+      setModalWebcamAberta(false);
+    }
+  };
+
+  const pararWebcam = () => {
+    if (webcamStream) {
+      webcamStream.getTracks().forEach(t => t.stop());
+      setWebcamStream(null);
+    }
+    setModalWebcamAberta(false);
+  };
+
+  const capturarFotoWebcam = () => {
+    if (!videoRef.current) return;
+    try {
+      const video = videoRef.current;
+      const targetWidth = 360;
+      const targetHeight = 480;
+      const canvas = document.createElement('canvas');
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        const vWidth = video.videoWidth || 640;
+        const vHeight = video.videoHeight || 480;
+        const vRatio = vWidth / vHeight;
+        const targetRatio = targetWidth / targetHeight;
+
+        let sx = 0;
+        let sy = 0;
+        let sw = vWidth;
+        let sh = vHeight;
+
+        if (vRatio > targetRatio) {
+          sw = vHeight * targetRatio;
+          sx = (vWidth - sw) / 2;
+        } else {
+          sh = vWidth / targetRatio;
+          sy = Math.max(0, (vHeight - sh) * 0.25);
+        }
+
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, targetWidth, targetHeight);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        setForm(prev => ({ ...prev, foto: dataUrl }));
+        setFeedbackMsg('Foto capturada pela webcam!');
+        setTimeout(() => setFeedbackMsg(null), 3000);
+      }
+      pararWebcam();
+    } catch (e) {
+      console.error('Erro ao capturar foto da webcam:', e);
+      setErroFoto('Erro ao capturar imagem da webcam.');
+      pararWebcam();
+    }
+  };
+
   // Submissão final
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -604,7 +769,172 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               )}
             </div>
 
+            {/* Hidden inputs para seleção de arquivo e câmera mobile */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              onChange={e => {
+                if (e.target.files && e.target.files[0]) {
+                  processarArquivoFoto(e.target.files[0]);
+                }
+              }}
+              className="hidden"
+            />
+
+            <input
+              type="file"
+              ref={cameraInputRef}
+              accept="image/*"
+              capture="user"
+              onChange={e => {
+                if (e.target.files && e.target.files[0]) {
+                  processarArquivoFoto(e.target.files[0]);
+                }
+              }}
+              className="hidden"
+            />
+
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+              
+              {/* ========================================================= */}
+              {/* FOTO 3X4 DO INSCRITO: UPLOAD OU CÂMERA DO CELULAR */}
+              {/* ========================================================= */}
+              <div className="md:col-span-12 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-stone-50 via-emerald-50/20 to-stone-50 border border-stone-200 shadow-2xs">
+                <div className="flex flex-col sm:flex-row items-center gap-5">
+                  
+                  {/* Frame 3x4 com Preview */}
+                  <div className="relative shrink-0">
+                    <div className="w-28 h-36 sm:w-32 sm:h-40 rounded-2xl overflow-hidden bg-white border-2 border-stone-300 shadow-sm flex flex-col items-center justify-center text-center relative group">
+                      {form.foto ? (
+                        <>
+                          <img 
+                            src={form.foto} 
+                            alt="Foto 3x4 do Escoteiro" 
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-stone-900/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => cameraInputRef.current?.click()}
+                              title="Tirar nova foto com a câmera"
+                              className="p-2 bg-amber-500 text-emerald-950 rounded-xl shadow-md hover:bg-amber-400 cursor-pointer"
+                            >
+                              <Camera className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setForm(prev => ({ ...prev, foto: '' }))}
+                              title="Remover foto"
+                              className="p-2 bg-rose-600 text-white rounded-xl shadow-md hover:bg-rose-500 cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="p-3 flex flex-col items-center justify-center text-stone-400 select-none">
+                          <div className="w-12 h-12 rounded-full bg-stone-100 flex items-center justify-center mb-1 text-stone-300">
+                            <User className="w-7 h-7" />
+                          </div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500">Foto 3x4</span>
+                          <span className="text-[9px] text-stone-400 mt-0.5">Opcional</span>
+                        </div>
+                      )}
+
+                      {processandoFoto && (
+                        <div className="absolute inset-0 bg-white/90 backdrop-blur-2xs flex flex-col items-center justify-center p-2 text-center">
+                          <RefreshCw className="w-6 h-6 text-emerald-700 animate-spin mb-1" />
+                          <span className="text-[10px] font-bold text-emerald-900">Ajustando foto...</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {form.foto && (
+                      <span className="absolute -bottom-2 -right-2 bg-emerald-600 text-white p-1 rounded-full shadow-md border-2 border-white">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Informações e Botões de Upload e Câmera */}
+                  <div className="flex-1 text-center sm:text-left space-y-2.5 min-w-0">
+                    <div>
+                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                        <h4 className="text-sm font-bold text-stone-900 flex items-center gap-1.5">
+                          <Camera className="w-4 h-4 text-emerald-700" />
+                          <span>Foto 3x4 do Inscrito</span>
+                        </h4>
+                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                          Ficha Oficial & Carteirinha
+                        </span>
+                      </div>
+                      <p className="text-xs text-stone-500 mt-1">
+                        Você pode tirar uma foto agora mesmo com a câmera do seu celular ou fazer upload da galeria/arquivos.
+                      </p>
+                    </div>
+
+                    {erroFoto && (
+                      <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{erroFoto}</span>
+                      </div>
+                    )}
+
+                    {/* Botões de Ação */}
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
+                      
+                      {/* Botão Câmera do Celular / Smartphone */}
+                      <button
+                        type="button"
+                        onClick={() => cameraInputRef.current?.click()}
+                        className="px-3.5 py-2.5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-emerald-950 font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                      >
+                        <Smartphone className="w-4 h-4 text-emerald-950 shrink-0" />
+                        <Camera className="w-4 h-4 text-emerald-950 shrink-0" />
+                        <span>Tirar Foto com o Celular</span>
+                      </button>
+
+                      {/* Botão Upload de Arquivo / Galeria */}
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-3.5 py-2.5 bg-white hover:bg-stone-100 active:bg-stone-200 text-stone-800 font-semibold text-xs rounded-xl border border-stone-300 transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Upload className="w-4 h-4 text-stone-600 shrink-0" />
+                        <span>Fazer Upload / Galeria</span>
+                      </button>
+
+                      {/* Botão Webcam Desktop */}
+                      <button
+                        type="button"
+                        onClick={iniciarWebcam}
+                        className="hidden sm:inline-flex px-3 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold text-xs rounded-xl border border-emerald-200 transition-all items-center gap-1.5 cursor-pointer"
+                      >
+                        <Video className="w-4 h-4 text-emerald-700 shrink-0" />
+                        <span>Webcam PC</span>
+                      </button>
+
+                      {/* Botão Remover Foto */}
+                      {form.foto && (
+                        <button
+                          type="button"
+                          onClick={() => setForm(prev => ({ ...prev, foto: '' }))}
+                          className="px-3 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs rounded-xl border border-rose-200 transition-all flex items-center gap-1 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Remover Foto</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="text-[11px] text-stone-400 flex items-center gap-1 justify-center sm:justify-start">
+                      <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
+                      <span>A foto é enquadrada e otimizada automaticamente no formato oficial 3x4.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
               
               {/* Nome Completo */}
               <div className="md:col-span-8">
@@ -2742,6 +3072,66 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
         </div>
 
       </form>
+
+      {/* Modal de Captura com Webcam */}
+      {modalWebcamAberta && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/80 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl border border-stone-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+              <div className="flex items-center gap-2 text-stone-900 font-bold">
+                <Camera className="w-5 h-5 text-emerald-700" />
+                <span>Capturar Foto 3x4 pela Webcam</span>
+              </div>
+              <button
+                type="button"
+                onClick={pararWebcam}
+                className="p-1.5 text-stone-400 hover:text-stone-600 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="relative rounded-2xl overflow-hidden bg-black aspect-[3/4] max-h-80 mx-auto flex items-center justify-center shadow-inner">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+              />
+              {/* Moldura guia para centralização do rosto */}
+              <div className="absolute inset-0 pointer-events-none border-2 border-dashed border-amber-400/70 rounded-2xl m-3 flex items-center justify-center">
+                <span className="text-[10px] text-white/70 bg-black/50 px-2 py-0.5 rounded-full mb-auto mt-2">
+                  Enquadre o rosto no centro
+                </span>
+              </div>
+            </div>
+
+            <p className="text-center text-xs text-stone-500">
+              Posicione o rosto do escoteiro centralizado e clique no botão abaixo.
+            </p>
+
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                type="button"
+                onClick={capturarFotoWebcam}
+                className="flex-1 py-3 px-4 bg-emerald-800 hover:bg-emerald-900 active:bg-emerald-950 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+              >
+                <Camera className="w-4 h-4 text-amber-400" />
+                <span>Fotografar Agora</span>
+              </button>
+              <button
+                type="button"
+                onClick={pararWebcam}
+                className="py-3 px-4 bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold text-xs rounded-xl cursor-pointer"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Compass, 
+  Home,
   BarChart3, 
   UserPlus, 
   Users, 
@@ -15,8 +15,10 @@ import {
   X,
   ChevronDown
 } from 'lucide-react';
+import { ScoutLogo } from './ScoutLogo';
 
 export type TabType = 
+  | 'home'
   | 'dashboard' 
   | 'novo' 
   | 'lista' 
@@ -51,10 +53,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Logo & Scout Identity */}
             <div 
               className="flex items-center gap-2.5 sm:gap-3 cursor-pointer min-w-0" 
-              onClick={() => setCurrentTab('dashboard')}
+              onClick={() => setCurrentTab('home')}
+              title="Ir para a Home do Grupo Escoteiro"
             >
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400 shadow-inner shrink-0">
-                <Compass className="w-6 h-6 sm:w-7 sm:h-7" />
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white p-0.5 border-2 border-amber-400/80 flex items-center justify-center shadow-md shrink-0 overflow-hidden">
+                <ScoutLogo className="w-full h-full" />
               </div>
               <div className="min-w-0 truncate">
                 <div className="flex items-center gap-1.5 sm:gap-2">
@@ -72,6 +75,18 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Desktop Navigation */}
             <nav className="hidden xl:flex items-center gap-1 bg-emerald-900/40 p-1.5 rounded-xl border border-emerald-800/40 text-xs sm:text-sm">
+              <button
+                onClick={() => setCurrentTab('home')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${
+                  currentTab === 'home'
+                    ? 'bg-emerald-800 text-white shadow-xs font-bold'
+                    : 'text-emerald-200 hover:text-white hover:bg-emerald-800/50'
+                }`}
+              >
+                <Home className="w-4 h-4 text-amber-400" />
+                <span>Home</span>
+              </button>
+
               <button
                 onClick={() => setCurrentTab('dashboard')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-all ${
@@ -163,6 +178,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Medium Devices Navigation (lg to xl) */}
             <nav className="hidden md:flex xl:hidden items-center gap-1 bg-emerald-900/40 p-1.5 rounded-xl border border-emerald-800/40 text-xs">
               <button
+                onClick={() => setCurrentTab('home')}
+                className={`px-2.5 py-1.5 rounded-lg font-medium ${currentTab === 'home' ? 'bg-emerald-800 text-white font-bold' : 'text-emerald-200'}`}
+              >
+                Home
+              </button>
+              <button
                 onClick={() => setCurrentTab('dashboard')}
                 className={`px-2.5 py-1.5 rounded-lg font-medium ${currentTab === 'dashboard' ? 'bg-emerald-800 text-white font-bold' : 'text-emerald-200'}`}
               >
@@ -219,7 +240,18 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="md:hidden print:hidden fixed bottom-0 left-0 right-0 z-50 bg-emerald-950/95 backdrop-blur-md border-t border-emerald-800/80 shadow-2xl safe-area-bottom">
         <div className="grid grid-cols-5 h-16 items-center px-1">
           
-          {/* 1. Dashboard */}
+          {/* 1. Home */}
+          <button
+            onClick={() => setCurrentTab('home')}
+            className={`flex flex-col items-center justify-center h-full py-1 transition-all ${
+              currentTab === 'home' ? 'text-amber-400 font-bold' : 'text-emerald-200/70 hover:text-emerald-100'
+            }`}
+          >
+            <Home className="w-5 h-5 mb-0.5" />
+            <span className="text-[10px]">Home</span>
+          </button>
+
+          {/* 2. Dashboard */}
           <button
             onClick={() => setCurrentTab('dashboard')}
             className={`flex flex-col items-center justify-center h-full py-1 transition-all ${
@@ -230,7 +262,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="text-[10px]">Painel</span>
           </button>
 
-          {/* 2. Escoteiros */}
+          {/* 3. Center Highlight: Novo Cadastro */}
+          <button
+            onClick={onNovoCadastro}
+            className="flex flex-col items-center justify-center -translate-y-2 group"
+          >
+            <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 text-emerald-950 flex items-center justify-center shadow-lg shadow-amber-950/40 border-2 border-emerald-900 group-active:scale-90 transition-transform">
+              <Plus className="w-6 h-6 stroke-[3]" />
+            </div>
+            <span className="text-[9px] font-bold text-amber-300 mt-0.5">Novo</span>
+          </button>
+
+          {/* 4. Escoteiros */}
           <button
             onClick={() => setCurrentTab('lista')}
             className={`flex flex-col items-center justify-center h-full py-1 relative transition-all ${
@@ -248,33 +291,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="text-[10px]">Membros</span>
           </button>
 
-          {/* 3. Center Highlight: Novo Cadastro */}
-          <button
-            onClick={onNovoCadastro}
-            className="flex flex-col items-center justify-center -translate-y-2 group"
-          >
-            <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-amber-400 text-emerald-950 flex items-center justify-center shadow-lg shadow-amber-950/40 border-2 border-emerald-900 group-active:scale-90 transition-transform">
-              <Plus className="w-6 h-6 stroke-[3]" />
-            </div>
-            <span className="text-[9px] font-bold text-amber-300 mt-0.5">Novo</span>
-          </button>
-
-          {/* 4. Financeiro */}
-          <button
-            onClick={() => setCurrentTab('financeiro')}
-            className={`flex flex-col items-center justify-center h-full py-1 transition-all ${
-              currentTab === 'financeiro' ? 'text-amber-400 font-bold' : 'text-emerald-200/70 hover:text-emerald-100'
-            }`}
-          >
-            <DollarSign className="w-5 h-5 mb-0.5" />
-            <span className="text-[10px]">Financeiro</span>
-          </button>
-
           {/* 5. Menu Mais */}
           <button
             onClick={() => setMenuMaisAberto(!menuMaisAberto)}
             className={`flex flex-col items-center justify-center h-full py-1 transition-all ${
-              menuMaisAberto || ['eventos', 'uniformes', 'impressao', 'database'].includes(currentTab)
+              menuMaisAberto || ['financeiro', 'eventos', 'uniformes', 'impressao', 'database'].includes(currentTab)
                 ? 'text-amber-400 font-bold'
                 : 'text-emerald-200/70 hover:text-emerald-100'
             }`}

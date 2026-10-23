@@ -120,18 +120,34 @@ export const OfficialSheetView: React.FC<OfficialSheetViewProps> = ({
         <section className="bg-white p-8 sm:p-12 print:p-0 rounded-2xl print:rounded-none border print:border-none border-stone-300 shadow-sm print:shadow-none print:break-after-page min-h-[297mm] flex flex-col justify-between">
           <div>
             
-            {/* Header com Logo */}
-            <div className="flex items-center justify-between pb-3 mb-2">
-              <div className="w-16 h-16 flex items-center justify-center">
+            {/* Header com Logo e Foto 3x4 Oficial */}
+            <div className="flex items-center justify-between pb-3 mb-2 gap-3">
+              <div className="w-16 h-16 flex items-center justify-center shrink-0">
                 <ScoutLogo className="w-16 h-16" />
               </div>
-              <div className="flex-1 text-center pr-12">
+              <div className="flex-1 text-center">
                 <h1 className="text-sm font-bold tracking-tight uppercase">
                   GRUPO ESCOTEIRO TRADICIONAL 22 DE FEVEREIRO – FRANCA/SP
                 </h1>
                 <h2 className="text-xs font-bold uppercase mt-1">
                   FICHA DE INSCRIÇÃO INDIVIDUAL
                 </h2>
+              </div>
+              {/* Espaço ou Imagem da Foto 3x4 Oficial */}
+              <div className="w-[24mm] h-[32mm] border border-black flex flex-col items-center justify-center text-center p-0.5 overflow-hidden shrink-0 bg-stone-50 print:bg-transparent">
+                {escoteiro.foto ? (
+                  <img 
+                    src={escoteiro.foto} 
+                    alt="Foto 3x4" 
+                    className="w-full h-full object-cover" 
+                  />
+                ) : (
+                  <div className="text-[8px] text-stone-500 font-bold uppercase leading-tight">
+                    <span>FOTO</span>
+                    <br />
+                    <span>3x4</span>
+                  </div>
+                )}
               </div>
             </div>
 

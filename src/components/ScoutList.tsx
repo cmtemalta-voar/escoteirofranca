@@ -322,16 +322,33 @@ export const ScoutList: React.FC<ScoutListProps> = ({
                         {esc.fichaMedica.numeroRegistro || 'S/N'}
                       </td>
                       <td className="px-5 py-4">
-                        <div className="font-semibold text-stone-900 flex items-center gap-1.5">
-                          <span>{esc.nomeCompleto}</span>
-                          <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
-                            esc.sexo === 'M' ? 'bg-blue-50 text-blue-700' : 'bg-rose-50 text-rose-700'
-                          }`}>
-                            {esc.sexo}
-                          </span>
-                        </div>
-                        <div className="text-xs text-stone-400">
-                          Nasc: {formatarDataBR(esc.dataNascimento)} · CPF: {esc.cpf || 'Não inf.'}
+                        <div className="flex items-center gap-3">
+                          {esc.foto ? (
+                            <img 
+                              src={esc.foto} 
+                              alt={esc.nomeCompleto} 
+                              className="w-10 h-10 rounded-xl object-cover border border-emerald-700/30 shadow-2xs shrink-0" 
+                            />
+                          ) : (
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shadow-2xs shrink-0 ${
+                              esc.sexo === 'M' ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-rose-100 text-rose-800 border border-rose-200'
+                            }`}>
+                              {esc.nomeCompleto.charAt(0)}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-semibold text-stone-900 flex items-center gap-1.5">
+                              <span className="truncate">{esc.nomeCompleto}</span>
+                              <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold shrink-0 ${
+                                esc.sexo === 'M' ? 'bg-blue-50 text-blue-700' : 'bg-rose-50 text-rose-700'
+                              }`}>
+                                {esc.sexo}
+                              </span>
+                            </div>
+                            <div className="text-xs text-stone-400 truncate">
+                              Nasc: {formatarDataBR(esc.dataNascimento)} · CPF: {esc.cpf || 'Não inf.'}
+                            </div>
+                          </div>
                         </div>
                       </td>
                       <td className="px-5 py-4">
@@ -468,14 +485,31 @@ export const ScoutList: React.FC<ScoutListProps> = ({
                     </span>
                   </div>
 
-                  <h3 className="text-base font-bold text-stone-900 leading-snug">
-                    {esc.nomeCompleto}
-                  </h3>
-                  
-                  <div className="text-xs text-stone-500 mt-1 flex items-center gap-2">
-                    <span>{esc.sexo === 'M' ? 'Masculino' : 'Feminino'}</span>
-                    <span>·</span>
-                    <span>Nasc: {formatarDataBR(esc.dataNascimento)}</span>
+                  <div className="flex items-center gap-3">
+                    {esc.foto ? (
+                      <img 
+                        src={esc.foto} 
+                        alt={esc.nomeCompleto} 
+                        className="w-12 h-12 rounded-2xl object-cover border border-emerald-700/30 shadow-xs shrink-0" 
+                      />
+                    ) : (
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-base shadow-xs shrink-0 ${
+                        esc.sexo === 'M' ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-rose-100 text-rose-800 border border-rose-200'
+                      }`}>
+                        {esc.nomeCompleto.charAt(0)}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <h3 className="text-base font-bold text-stone-900 leading-snug truncate">
+                        {esc.nomeCompleto}
+                      </h3>
+                      
+                      <div className="text-xs text-stone-500 mt-0.5 flex items-center gap-2">
+                        <span>{esc.sexo === 'M' ? 'Masculino' : 'Feminino'}</span>
+                        <span>·</span>
+                        <span>Nasc: {formatarDataBR(esc.dataNascimento)}</span>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="mt-3 pt-3 border-t border-stone-100 text-xs space-y-1.5">

@@ -19,6 +19,7 @@ import { EventosManager } from './components/EventosManager';
 import { UniformesManager } from './components/UniformesManager';
 import { PainelDirigenteModal } from './components/PainelDirigenteModal';
 import { ExportModal } from './components/ExportModal';
+import { HomeView } from './components/HomeView';
 import { CheckCircle2, ShieldCheck, Heart } from 'lucide-react';
 
 export default function App() {
@@ -46,7 +47,7 @@ export default function App() {
     return storageService.getUniformes();
   });
 
-  const [currentTab, setCurrentTab] = useState<TabType>('dashboard');
+  const [currentTab, setCurrentTab] = useState<TabType>('home');
   const [selectedEscoteiro, setSelectedEscoteiro] = useState<EscoteiroCadastro | null>(() => {
     const list = storageService.getEscoteiros();
     return list.length > 0 ? list[0] : null;
@@ -175,6 +176,17 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 pb-24 md:pb-8">
         
+        {/* 0. HOME: LOGO DO ESCOTEIRO, LOGIN DE ACESSO & BOTÃO NOVO CADASTRO */}
+        {currentTab === 'home' && (
+          <HomeView
+            onNovoCadastro={handleNovoCadastro}
+            onLoginSuccess={() => {
+              setCurrentTab('dashboard');
+              showToast('Login realizado com sucesso! Bem-vindo(a) ao painel.');
+            }}
+          />
+        )}
+
         {/* 1. DASHBOARD GERAL COM ANIVERSARIANTES & ATALHOS */}
         {currentTab === 'dashboard' && (
           <Dashboard

@@ -126,6 +126,9 @@ export interface EscoteiroCadastro {
   criadoEm: string; // ISO
   atualizadoEm: string; // ISO
 
+  // Foto 3x4 do Escoteiro (Base64 compactada ou URL)
+  foto?: string;
+
   // 1. Dados do Inscrito
   nomeCompleto: string;
   sexo: Sexo;
