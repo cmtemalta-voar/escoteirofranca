@@ -1,0 +1,33 @@
+{
+  "escoteiros": [],
+  "contribuicoes": [],
+  "filiacoes": [],
+  "eventos": [],
+  "participacoes": [],
+  "uniformes": [],
+  "usuarios": [
+    {
+      "id": "user-admin-malta",
+      "nome": "Cmte. Malta",
+      "login": "cmte.malta@gmail.com",
+      "senha": "@f@m2lt2",
+      "cargo": "Comandante / Administrador Geral",
+      "isAdmin": true,
+      "permissoes": [
+        "dashboard",
+        "novo",
+        "lista",
+        "financeiro",
+        "eventos",
+        "uniformes",
+        "impressao",
+        "database",
+        "usuarios"
+      ],
+      "ativo": true,
+      "criadoEm": "2026-01-01T08:00:00.000Z"
+    }
+  ],
+  "ultimaAtualizacao": "2026-10-24T16:41:30.643Z",
+  "versaoBanco": "1.0.0"
+}

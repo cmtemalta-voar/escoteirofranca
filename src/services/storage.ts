@@ -24,6 +24,8 @@ const KEY_PARTICIPACOES = 'get_22_fevereiro_participacoes_db';
 const KEY_UNIFORMES = 'get_22_fevereiro_uniformes_db';
 const KEY_USUARIOS = 'get_22_fevereiro_usuarios_db';
 const KEY_SESSAO_ATIVA = 'get_22_fevereiro_sessao_ativa';
+const KEY_REMOTE_API_URL = 'get_22_api_remote_url';
+const KEY_LAST_SYNC = 'get_22_last_sync_timestamp';
 
 export const USUARIOS_INICIAIS: UsuarioSistema[] = [
   {
@@ -158,6 +160,7 @@ export const storageService = {
 
     list.unshift(novo);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    this.enviarParaServidorAsync(novo);
     return novo;
   },
 
@@ -165,6 +168,7 @@ export const storageService = {
     const list = this.getEscoteiros();
     const filtered = list.filter(e => e.id !== id);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+    this.excluirDoServidorAsync(id);
     return filtered.length < list.length;
   },
 
@@ -186,6 +190,7 @@ export const storageService = {
     localStorage.setItem(KEY_UNIFORMES, JSON.stringify([]));
     localStorage.setItem(KEY_USUARIOS, JSON.stringify(USUARIOS_INICIAIS));
     this.definirSessaoAtual(USUARIOS_INICIAIS[0]);
+    this.resetarServidorAsync();
   },
 
   limparTodos(): void {
@@ -792,5 +797,167 @@ export const storageService = {
   redefinirUsuariosPadrao(): UsuarioSistema[] {
     localStorage.setItem(KEY_USUARIOS, JSON.stringify(USUARIOS_INICIAIS));
     return USUARIOS_INICIAIS;
+  },
+
+  /* ========================================================================= */
+  /* SINCRONIZAÇÃO & INTEGRAÇÃO COM SERVIDOR HOSTINGER / BANCO CENTRAL         */
+  /* ========================================================================= */
+  getApiUrl(): string {
+    if (typeof window === 'undefined') return '';
+    return localStorage.getItem(KEY_REMOTE_API_URL) || '';
+  },
+
+  setApiUrl(url: string): void {
+    if (typeof window === 'undefined') return;
+    if (!url || !url.trim()) {
+      localStorage.removeItem(KEY_REMOTE_API_URL);
+    } else {
+      localStorage.setItem(KEY_REMOTE_API_URL, url.trim().replace(/\/$/, ''));
+    }
+  },
+
+  getLastSyncTime(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(KEY_LAST_SYNC);
+  },
+
+  async testarConexaoServidor(customUrl?: string): Promise<{ ok: boolean; info?: any; erro?: string; latencyMs?: number }> {
+    const base = customUrl !== undefined ? customUrl.trim().replace(/\/$/, '') : this.getApiUrl();
+    const endpoint = `${base}/api/status`;
+    const start = Date.now();
+    try {
+      const resp = await fetch(endpoint, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      });
+      const latencyMs = Date.now() - start;
+      if (!resp.ok) {
+        return { ok: false, erro: `Servidor respondeu com status HTTP ${resp.status}`, latencyMs };
+      }
+      const data = await resp.json();
+      return { ok: true, info: data, latencyMs };
+    } catch (err: any) {
+      return { ok: false, erro: err.message || 'Falha de conexão com o servidor.', latencyMs: Date.now() - start };
+    }
+  },
+
+  async sincronizarComServidor(customUrl?: string): Promise<{ sucesso: boolean; mensagem: string; totalEscoteiros: number; adicionados: number }> {
+    const base = customUrl !== undefined ? customUrl.trim().replace(/\/$/, '') : this.getApiUrl();
+    const endpointSync = `${base}/api/sync`;
+    try {
+      // 1. Busca dados do servidor
+      const respGet = await fetch(endpointSync, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      });
+
+      if (!respGet.ok) {
+        throw new Error(`Erro ao consultar servidor: HTTP ${respGet.status}`);
+      }
+
+      const dbServidor = await respGet.json();
+      const escoteirosServidor: EscoteiroCadastro[] = Array.isArray(dbServidor.escoteiros) ? dbServidor.escoteiros : [];
+      const escoteirosLocais = this.getEscoteiros();
+
+      // Mescla inteligente: reúne registros locais e do servidor sem perdas
+      const mapa = new Map<string, EscoteiroCadastro>();
+      
+      // Adiciona locais
+      escoteirosLocais.forEach(e => {
+        if (e.id) mapa.set(e.id, e);
+      });
+
+      let novosDoServidor = 0;
+      // Mescla com os do servidor
+      escoteirosServidor.forEach(e => {
+        if (e.id) {
+          const local = mapa.get(e.id);
+          if (!local) {
+            mapa.set(e.id, e);
+            novosDoServidor++;
+          } else {
+            // Compara timestamps para manter o mais recente
+            const timeLocal = new Date(local.atualizadoEm || local.criadoEm || 0).getTime();
+            const timeServidor = new Date(e.atualizadoEm || e.criadoEm || 0).getTime();
+            if (timeServidor >= timeLocal) {
+              mapa.set(e.id, e);
+            }
+          }
+        }
+      });
+
+      const listaMesclada = Array.from(mapa.values());
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(listaMesclada));
+
+      // 2. Envia a base mesclada de volta ao servidor para que ele também guarde dados criados localmente
+      await fetch(endpointSync, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          escoteiros: listaMesclada,
+          contribuicoes: this.getContribuicoes(),
+          filiacoes: this.getFiliacoes(),
+          eventos: this.getEventos(),
+          participacoes: this.getParticipacoes(),
+          uniformes: this.getUniformes(),
+        }),
+      });
+
+      const agora = new Date().toISOString();
+      localStorage.setItem(KEY_LAST_SYNC, agora);
+
+      return {
+        sucesso: true,
+        mensagem: `Sincronização concluída! ${listaMesclada.length} fichas no banco de dados.`,
+        totalEscoteiros: listaMesclada.length,
+        adicionados: novosDoServidor,
+      };
+    } catch (err: any) {
+      console.warn('Erro ao sincronizar com servidor:', err);
+      return {
+        sucesso: false,
+        mensagem: err.message || 'Não foi possível sincronizar com o servidor no momento.',
+        totalEscoteiros: this.getEscoteiros().length,
+        adicionados: 0,
+      };
+    }
+  },
+
+  async enviarParaServidorAsync(cadastro: EscoteiroCadastro): Promise<void> {
+    try {
+      const base = this.getApiUrl();
+      await fetch(`${base}/api/escoteiros`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cadastro),
+      });
+      localStorage.setItem(KEY_LAST_SYNC, new Date().toISOString());
+    } catch (err) {
+      console.warn('Persistência assíncrona no servidor adiada (modo offline ou sem conexão):', err);
+    }
+  },
+
+  async excluirDoServidorAsync(id: string): Promise<void> {
+    try {
+      const base = this.getApiUrl();
+      await fetch(`${base}/api/escoteiros/${id}`, {
+        method: 'DELETE',
+      });
+      localStorage.setItem(KEY_LAST_SYNC, new Date().toISOString());
+    } catch (err) {
+      console.warn('Exclusão assíncrona no servidor adiada:', err);
+    }
+  },
+
+  async resetarServidorAsync(): Promise<void> {
+    try {
+      const base = this.getApiUrl();
+      await fetch(`${base}/api/reset-real`, {
+        method: 'POST',
+      });
+      localStorage.setItem(KEY_LAST_SYNC, new Date().toISOString());
+    } catch (err) {
+      console.warn('Reset assíncrono no servidor falhou:', err);
+    }
   }
 };

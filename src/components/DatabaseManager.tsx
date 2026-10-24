@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { EscoteiroCadastro } from '../types/scout';
 import { storageService } from '../services/storage';
 import { 
@@ -12,7 +12,15 @@ import {
   FileSpreadsheet,
   HardDrive,
   ShieldCheck,
-  FileJson
+  FileJson,
+  Server,
+  RefreshCw,
+  Globe,
+  Wifi,
+  WifiOff,
+  Check,
+  ExternalLink,
+  Info
 } from 'lucide-react';
 
 interface DatabaseManagerProps {
@@ -30,8 +38,110 @@ export const DatabaseManager: React.FC<DatabaseManagerProps> = ({
   const [confirmarLimpeza, setConfirmarLimpeza] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Estados de Sincronização e Conexão com o Servidor / Hostinger
+  const [apiUrl, setApiUrl] = useState<string>(() => storageService.getApiUrl());
+  const [statusConexao, setStatusConexao] = useState<'verificando' | 'online' | 'offline'>('verificando');
+  const [testando, setTestando] = useState<boolean>(false);
+  const [sincronizando, setSincronizando] = useState<boolean>(false);
+  const [infoServidor, setInfoServidor] = useState<{
+    totalEscoteiros?: number;
+    ultimaAtualizacao?: string;
+    servidor?: string;
+    latenciaMs?: number;
+  } | null>(null);
+  const [ultimoSync, setUltimoSync] = useState<string | null>(() => storageService.getLastSyncTime());
+
   // Tamanho aproximado dos dados em KB
   const tamanhoKB = Math.round(new Blob([JSON.stringify(escoteiros)]).size / 1024);
+
+  // Testar conectividade inicial ao abrir o gerenciador
+  useEffect(() => {
+    let ativo = true;
+    storageService.testarConexaoServidor().then((res) => {
+      if (!ativo) return;
+      if (res.ok) {
+        setStatusConexao('online');
+        setInfoServidor({
+          totalEscoteiros: res.info?.totalEscoteiros,
+          ultimaAtualizacao: res.info?.ultimaAtualizacao,
+          servidor: res.info?.servidor,
+          latenciaMs: res.latencyMs,
+        });
+      } else {
+        setStatusConexao('offline');
+      }
+    });
+    return () => { ativo = false; };
+  }, []);
+
+  const handleTestarConexao = async () => {
+    setTestando(true);
+    setMensagem(null);
+    try {
+      const res = await storageService.testarConexaoServidor(apiUrl);
+      if (res.ok) {
+        setStatusConexao('online');
+        setInfoServidor({
+          totalEscoteiros: res.info?.totalEscoteiros,
+          ultimaAtualizacao: res.info?.ultimaAtualizacao,
+          servidor: res.info?.servidor,
+          latenciaMs: res.latencyMs,
+        });
+        setMensagem({
+          tipo: 'sucesso',
+          texto: `Conexão bem-sucedida! Servidor respondendo em ${res.latencyMs}ms com ${res.info?.totalEscoteiros ?? 0} fichas cadastradas.`,
+        });
+      } else {
+        setStatusConexao('offline');
+        setMensagem({
+          tipo: 'erro',
+          texto: `Falha ao conectar no servidor: ${res.erro || 'Verifique se a URL está correta ou se o servidor está online.'}`,
+        });
+      }
+    } catch (err: any) {
+      setStatusConexao('offline');
+      setMensagem({ tipo: 'erro', texto: 'Erro de rede ao tentar contatar o servidor.' });
+    } finally {
+      setTestando(false);
+      setTimeout(() => setMensagem(null), 5000);
+    }
+  };
+
+  const handleSalvarUrlServidor = () => {
+    storageService.setApiUrl(apiUrl);
+    setMensagem({
+      tipo: 'sucesso',
+      texto: apiUrl.trim() ? `URL do Servidor Hostinger configurada para: ${apiUrl.trim()}` : 'URL redefinida para o servidor padrão local.',
+    });
+    handleTestarConexao();
+  };
+
+  const handleSincronizarServidor = async () => {
+    setSincronizando(true);
+    setMensagem(null);
+    try {
+      const res = await storageService.sincronizarComServidor(apiUrl);
+      if (res.sucesso) {
+        setStatusConexao('online');
+        onRefresh();
+        setUltimoSync(new Date().toISOString());
+        setMensagem({
+          tipo: 'sucesso',
+          texto: `${res.mensagem} (${res.adicionados} novas fichas puxadas do servidor)`,
+        });
+      } else {
+        setMensagem({
+          tipo: 'erro',
+          texto: res.mensagem,
+        });
+      }
+    } catch (err: any) {
+      setMensagem({ tipo: 'erro', texto: 'Erro durante processo de sincronização.' });
+    } finally {
+      setSincronizando(false);
+      setTimeout(() => setMensagem(null), 5000);
+    }
+  };
 
   const handleExportarJSON = () => {
     try {
@@ -64,6 +174,8 @@ export const DatabaseManager: React.FC<DatabaseManagerProps> = ({
         const res = storageService.importarJSON(content);
         if (res.success) {
           onRefresh();
+          // Envia também para o servidor
+          storageService.sincronizarComServidor();
           setMensagem({ tipo: 'sucesso', texto: `${res.count} cadastros importados com sucesso para o banco de dados!` });
         } else {
           setMensagem({ tipo: 'erro', texto: res.error || 'Erro na validação do arquivo JSON.' });
@@ -78,7 +190,7 @@ export const DatabaseManager: React.FC<DatabaseManagerProps> = ({
   };
 
   const handleLimparTudoParaDadosReais = () => {
-    if (window.confirm('Atenção: Deseja zerar completamente o sistema para operação com Dados Reais? Todos os registros serão apagados e apenas o usuário Administrador Cmte. Malta será mantido.')) {
+    if (window.confirm('Atenção: Deseja zerar completamente o sistema para operação com Dados Reais? Todos os registros serão apagados no navegador e no servidor, mantendo apenas o usuário Administrador Cmte. Malta.')) {
       storageService.limparTudoParaDadosReais();
       onRefresh();
       setConfirmarLimpeza(false);
@@ -103,13 +215,13 @@ export const DatabaseManager: React.FC<DatabaseManagerProps> = ({
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-700">
             <Database className="w-4 h-4" />
-            <span>Controle & Persistência de Dados</span>
+            <span>Controle, Servidor & Persistência</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-bold font-serif text-stone-900">
-            Banco de Dados do Grupo Escoteiro
+            Banco de Dados & Sincronização
           </h2>
           <p className="text-xs text-stone-500">
-            Armazenamento seguro, exportação em planilha, rotinas de backup e restauração.
+            Persistência centralizada no servidor da Hostinger, redundância local e sincronização em tempo real.
           </p>
         </div>
 
@@ -124,7 +236,7 @@ export const DatabaseManager: React.FC<DatabaseManagerProps> = ({
             ? 'bg-emerald-50 text-emerald-900 border border-emerald-200' 
             : 'bg-rose-50 text-rose-900 border border-rose-200'
         }`}>
-          {mensagem.tipo === 'sucesso' ? <CheckCircle2 className="w-5 h-5 text-emerald-600" /> : <AlertCircle className="w-5 h-5 text-rose-600" />}
+          {mensagem.tipo === 'sucesso' ? <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" /> : <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />}
           <span>{mensagem.texto}</span>
         </div>
       )}
@@ -132,24 +244,130 @@ export const DatabaseManager: React.FC<DatabaseManagerProps> = ({
       {/* Database KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-stone-200/80 shadow-sm">
-          <div className="text-xs font-semibold text-stone-500 uppercase">Registros no Banco</div>
+          <div className="text-xs font-semibold text-stone-500 uppercase">Fichas no Banco Ativo</div>
           <div className="text-3xl font-extrabold text-stone-900 mt-1">{escoteiros.length}</div>
-          <div className="text-xs text-stone-400 mt-1">Fichas ativas com histórico médico</div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-stone-200/80 shadow-sm">
-          <div className="text-xs font-semibold text-stone-500 uppercase">Tamanho do Banco</div>
-          <div className="text-3xl font-extrabold text-emerald-800 mt-1">~{tamanhoKB} KB</div>
-          <div className="text-xs text-stone-400 mt-1">Armazenado localmente</div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-stone-200/80 shadow-sm">
-          <div className="text-xs font-semibold text-stone-500 uppercase">Status do Sistema</div>
-          <div className="text-base font-bold text-emerald-700 mt-2 flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Operacional & Sincronizado</span>
+          <div className="text-xs text-stone-400 mt-1">
+            {infoServidor?.totalEscoteiros !== undefined ? `${infoServidor.totalEscoteiros} registradas no servidor` : 'Histórico médico completo'}
           </div>
-          <div className="text-xs text-stone-400 mt-1">Persistência em tempo real</div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-stone-200/80 shadow-sm">
+          <div className="text-xs font-semibold text-stone-500 uppercase">Conexão do Servidor</div>
+          <div className="text-base font-bold mt-2 flex items-center gap-1.5">
+            {statusConexao === 'online' ? (
+              <span className="inline-flex items-center gap-1.5 text-emerald-700">
+                <Wifi className="w-4 h-4 text-emerald-600" />
+                <span>Servidor Online</span>
+              </span>
+            ) : statusConexao === 'verificando' ? (
+              <span className="inline-flex items-center gap-1.5 text-amber-600">
+                <RefreshCw className="w-4 h-4 animate-spin text-amber-500" />
+                <span>Verificando...</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-rose-600">
+                <WifiOff className="w-4 h-4 text-rose-500" />
+                <span>Modo Local (Offline)</span>
+              </span>
+            )}
+          </div>
+          <div className="text-xs text-stone-400 mt-1">
+            {infoServidor?.latenciaMs ? `Latência: ${infoServidor.latenciaMs}ms` : 'Persistência no navegador'}
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-stone-200/80 shadow-sm">
+          <div className="text-xs font-semibold text-stone-500 uppercase">Última Sincronização</div>
+          <div className="text-sm font-bold text-stone-800 mt-2">
+            {ultimoSync ? new Date(ultimoSync).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Automática'}
+          </div>
+          <div className="text-xs text-stone-400 mt-1">
+            {ultimoSync ? new Date(ultimoSync).toLocaleDateString('pt-BR') : 'Ao abrir o sistema'}
+          </div>
+        </div>
+      </div>
+
+      {/* SEÇÃO PRINCIPAL: SINCRONIZAÇÃO E INTEGRAÇÃO HOSTINGER / GOOGLE IA */}
+      <div className="bg-white p-6 sm:p-8 rounded-2xl border border-stone-200/80 shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-100 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Server className="w-5 h-5 text-emerald-700" />
+              <h3 className="text-base font-bold text-stone-900">
+                Integração do Servidor Hostinger & Banco Central
+              </h3>
+            </div>
+            <p className="text-xs text-stone-500 mt-1">
+              Garanta que todas as inscrições feitas no site hospedado na Hostinger sejam gravadas no banco permanente e reflitam em qualquer dispositivo.
+            </p>
+          </div>
+
+          <button
+            onClick={handleSincronizarServidor}
+            disabled={sincronizando}
+            className="py-2.5 px-4 bg-emerald-800 hover:bg-emerald-900 disabled:bg-emerald-400 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+          >
+            <RefreshCw className={`w-4 h-4 ${sincronizando ? 'animate-spin' : ''}`} />
+            <span>{sincronizando ? 'Sincronizando...' : 'Sincronizar com Hostinger Agora'}</span>
+          </button>
+        </div>
+
+        {/* Banner Explicativo de Arquitetura */}
+        <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-4 text-xs text-amber-900 space-y-2">
+          <div className="flex items-center gap-2 font-bold text-amber-800">
+            <Info className="w-4 h-4 shrink-0 text-amber-700" />
+            <span>Como funciona a persistência de inscrições entre Hostinger e Google IA:</span>
+          </div>
+          <ul className="list-disc pl-5 space-y-1 text-amber-800/90 leading-relaxed">
+            <li>
+              <strong>No Servidor Hostinger:</strong> Quando um pai ou voluntário preenche o cadastro, a ficha é gravada diretamente no banco permanente do servidor (<code>data/database.json</code>), ficando segura e preservada mesmo que o usuário feche a página.
+            </li>
+            <li>
+              <strong>Sincronização Bidirecional:</strong> Ao abrir o sistema aqui no Google IA ou no computador da Diretoria, o botão <em>"Sincronizar com Hostinger Agora"</em> ou a sincronização automática traz as novas inscrições instantaneamente.
+            </li>
+            <li>
+              <strong>Ambiente Isolado do Navegador:</strong> Se você estiver testando no Google IA e quiser puxar as inscrições do seu domínio oficial da Hostinger (ex: <code>https://seugrupoescoteiro.com.br</code>), basta inserir a URL abaixo e clicar em <em>"Salvar & Conectar"</em>.
+            </li>
+          </ul>
+        </div>
+
+        {/* Configuração de Endpoint Remoto */}
+        <div className="space-y-3 pt-2">
+          <label className="block text-xs font-bold uppercase tracking-wider text-stone-700">
+            Endereço (URL) do Servidor Hostinger (Opcional):
+          </label>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <Globe className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={apiUrl}
+                onChange={(e) => setApiUrl(e.target.value)}
+                placeholder="Exemplo: https://meugrupoescoteiro.com.br (ou deixe em branco para servidor padrão local)"
+                className="w-full pl-9 pr-3 py-2.5 text-xs bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:bg-white text-stone-800"
+              />
+            </div>
+            
+            <button
+              onClick={handleSalvarUrlServidor}
+              className="py-2.5 px-4 bg-stone-800 hover:bg-stone-900 text-white text-xs font-bold rounded-xl transition-colors shrink-0 flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Check className="w-4 h-4" />
+              <span>Salvar URL</span>
+            </button>
+
+            <button
+              onClick={handleTestarConexao}
+              disabled={testando}
+              className="py-2.5 px-4 bg-stone-200 hover:bg-stone-300 text-stone-800 text-xs font-bold rounded-xl transition-colors shrink-0 flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${testando ? 'animate-spin' : ''}`} />
+              <span>Testar Conexão</span>
+            </button>
+          </div>
+          <p className="text-[11px] text-stone-400">
+            Deixe o campo em branco quando o sistema estiver rodando no próprio servidor da Hostinger ou em ambiente local integrado.
+          </p>
         </div>
       </div>
 
@@ -174,7 +392,7 @@ export const DatabaseManager: React.FC<DatabaseManagerProps> = ({
             </div>
             <button
               onClick={onExportarCSV}
-              className="w-full py-2.5 px-4 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+              className="w-full py-2.5 px-4 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
             >
               <Download className="w-4 h-4" />
               <span>Baixar Planilha Excel (.csv)</span>
@@ -194,7 +412,7 @@ export const DatabaseManager: React.FC<DatabaseManagerProps> = ({
             </div>
             <button
               onClick={handleExportarJSON}
-              className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-emerald-950 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+              className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-emerald-950 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
             >
               <Download className="w-4 h-4" />
               <span>Exportar Backup Completo (.json)</span>
@@ -209,7 +427,7 @@ export const DatabaseManager: React.FC<DatabaseManagerProps> = ({
               </div>
               <h4 className="text-sm font-bold text-stone-900">Restaurar de Arquivo JSON</h4>
               <p className="text-xs text-stone-500 mt-1">
-                Selecione um arquivo de backup previamente exportado para restaurar a base de dados.
+                Selecione um arquivo de backup previamente exportado para restaurar a base de dados no navegador e sincronizar com o servidor.
               </p>
             </div>
             <div>
@@ -222,7 +440,7 @@ export const DatabaseManager: React.FC<DatabaseManagerProps> = ({
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full py-2.5 px-4 bg-stone-800 hover:bg-stone-900 text-white text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+                className="w-full py-2.5 px-4 bg-stone-800 hover:bg-stone-900 text-white text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Upload className="w-4 h-4" />
                 <span>Selecionar Arquivo Backup...</span>
@@ -243,7 +461,7 @@ export const DatabaseManager: React.FC<DatabaseManagerProps> = ({
             </div>
             <button
               onClick={handleLimparTudoParaDadosReais}
-              className="w-full py-2.5 px-4 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+              className="w-full py-2.5 px-4 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
             >
               <RotateCcw className="w-4 h-4" />
               <span>Resetar para Dados Reais</span>
@@ -260,13 +478,13 @@ export const DatabaseManager: React.FC<DatabaseManagerProps> = ({
           <span>Zona de Perigo</span>
         </div>
         <p className="text-xs text-stone-600">
-          A limpeza do banco de dados removerá todas as fichas salvas localmente neste navegador. Certifique-se de ter feito backup.
+          A limpeza do banco de dados removerá todas as fichas salvas localmente e no servidor. Certifique-se de ter feito backup.
         </p>
 
         {!confirmarLimpeza ? (
           <button
             onClick={() => setConfirmarLimpeza(true)}
-            className="px-4 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5"
+            className="px-4 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>Limpar Banco de Dados</span>
@@ -275,13 +493,13 @@ export const DatabaseManager: React.FC<DatabaseManagerProps> = ({
           <div className="flex items-center gap-2 pt-1">
             <button
               onClick={handleLimparBanco}
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition-colors"
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition-colors cursor-pointer"
             >
               Confirmar Exclusão Total
             </button>
             <button
               onClick={() => setConfirmarLimpeza(false)}
-              className="px-3 py-2 bg-stone-200 text-stone-700 text-xs rounded-xl"
+              className="px-3 py-2 bg-stone-200 text-stone-700 text-xs rounded-xl cursor-pointer"
             >
               Cancelar
             </button>

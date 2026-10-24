@@ -104,6 +104,18 @@ export default function App() {
     }
   }, [currentTab, canAccessTab]);
 
+  // Sincronização automática em segundo plano com o servidor central ao iniciar
+  useEffect(() => {
+    storageService.sincronizarComServidor().then((res) => {
+      if (res.sucesso && res.adicionados > 0) {
+        refreshData();
+        showToast(`${res.adicionados} nova(s) inscrição(ões) sincronizada(s) do servidor!`);
+      }
+    }).catch(() => {
+      // Falha silenciosa no background se estiver offline
+    });
+  }, [refreshData]);
+
   const handleLoginSuccess = (user: UsuarioSistema) => {
     setUsuarioAtual(user);
     if (user.isAdmin || user.permissoes?.includes('dashboard')) {
