@@ -74,6 +74,31 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
   const videoRef = React.useRef<HTMLVideoElement>(null);
+  const topoFormRef = React.useRef<HTMLDivElement>(null);
+
+  // Rolar suavemente a janela e o formulário para o início da página
+  const rolarParaInicio = () => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo({
+        top: 0,
+        left: 0,
+        behavior: 'smooth'
+      });
+    }
+    if (topoFormRef.current) {
+      topoFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  // Sempre que a etapa mudar, garantir que o usuário seja levado para o início da página
+  useEffect(() => {
+    // Leva para o início imediatamente e com pequeno atraso para acomodar re-renderização
+    rolarParaInicio();
+    const timer = setTimeout(() => {
+      rolarParaInicio();
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [etapa]);
 
   // Form State
   const [form, setForm] = useState<EscoteiroCadastro>(() => {
@@ -634,7 +659,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-16">
+    <div ref={topoFormRef} id="inicio-formulario" className="max-w-5xl mx-auto space-y-6 pb-16 scroll-mt-6">
       
       {/* Top Banner & Control */}
       <div className="bg-white p-6 rounded-2xl border border-stone-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -3031,8 +3056,11 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
             {etapa > 1 ? (
               <button
                 type="button"
-                onClick={() => setEtapa(etapa - 1)}
-                className="w-full sm:w-auto px-4 py-3 sm:py-2 text-sm font-semibold text-stone-700 hover:text-stone-950 bg-stone-100 hover:bg-stone-200 rounded-xl transition-all flex items-center justify-center gap-2"
+                onClick={() => {
+                  setEtapa(prev => prev - 1);
+                  rolarParaInicio();
+                }}
+                className="w-full sm:w-auto px-4 py-3 sm:py-2 text-sm font-semibold text-stone-700 hover:text-stone-950 bg-stone-100 hover:bg-stone-200 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>Etapa Anterior</span>
@@ -3041,7 +3069,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
               <button
                 type="button"
                 onClick={onCancel}
-                className="w-full sm:w-auto px-4 py-2.5 text-sm font-medium text-stone-500 hover:text-stone-800 text-center"
+                className="w-full sm:w-auto px-4 py-2.5 text-sm font-medium text-stone-500 hover:text-stone-800 text-center cursor-pointer"
               >
                 Cancelar
               </button>
@@ -3052,8 +3080,11 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
             {etapa < 4 ? (
               <button
                 type="button"
-                onClick={() => setEtapa(etapa + 1)}
-                className="w-full sm:w-auto px-6 py-3.5 sm:py-2.5 bg-emerald-800 hover:bg-emerald-900 active:bg-emerald-950 text-white text-sm font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
+                onClick={() => {
+                  setEtapa(prev => prev + 1);
+                  rolarParaInicio();
+                }}
+                className="w-full sm:w-auto px-6 py-3.5 sm:py-2.5 bg-emerald-800 hover:bg-emerald-900 active:bg-emerald-950 text-white text-sm font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>Próxima Etapa</span>
                 <ArrowRight className="w-4 h-4" />
