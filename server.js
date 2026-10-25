@@ -37,6 +37,7 @@ const USUARIO_ADMIN_DEFAULT = {
 function getDatabaseDefaults() {
   return {
     escoteiros: [],
+    idsExcluidos: [],
     contribuicoes: [],
     filiacoes: [],
     eventos: [],
@@ -65,6 +66,7 @@ function lerBanco() {
     }
     return {
       escoteiros: Array.isArray(parsed.escoteiros) ? parsed.escoteiros : [],
+      idsExcluidos: Array.isArray(parsed.idsExcluidos) ? parsed.idsExcluidos : [],
       contribuicoes: Array.isArray(parsed.contribuicoes) ? parsed.contribuicoes : [],
       filiacoes: Array.isArray(parsed.filiacoes) ? parsed.filiacoes : [],
       eventos: Array.isArray(parsed.eventos) ? parsed.eventos : [],
@@ -153,6 +155,7 @@ app.post('/api/escoteiros', (req, res) => {
     const agora = new Date().toISOString();
 
     if (cadastro.id) {
+      db.idsExcluidos = db.idsExcluidos.filter(id => id !== cadastro.id);
       const index = db.escoteiros.findIndex((e) => e.id === cadastro.id);
       if (index !== -1) {
         const atualizado = {
@@ -170,9 +173,12 @@ app.post('/api/escoteiros', (req, res) => {
 
     const count = db.escoteiros.length + 1;
     const numeroRegistro = cadastro.fichaMedica?.numeroRegistro || `GET-2026-${String(count).padStart(3, '0')}`;
+    const novoId = cadastro.id || `esc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    db.idsExcluidos = db.idsExcluidos.filter(id => id !== novoId);
+
     const novo = {
       ...cadastro,
-      id: cadastro.id || `esc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: novoId,
       criadoEm: agora,
       atualizadoEm: agora,
       fichaMedica: {
@@ -197,12 +203,15 @@ app.delete('/api/escoteiros/:id', (req, res) => {
   const db = lerBanco();
   const anterior = db.escoteiros.length;
   db.escoteiros = db.escoteiros.filter((e) => e.id !== id);
-  if (db.escoteiros.length < anterior) {
-    salvarBanco(db);
-    res.json({ sucesso: true, id });
-  } else {
-    res.status(404).json({ erro: 'Registro não encontrado.' });
+  if (!db.idsExcluidos.includes(id)) {
+    db.idsExcluidos.push(id);
+    if (db.idsExcluidos.length > 2000) {
+      db.idsExcluidos = db.idsExcluidos.slice(-2000);
+    }
   }
+  salvarBanco(db);
+  console.log(`[Hostinger Server] Registro excluído com tombstone: ${id}`);
+  res.json({ sucesso: true, id });
 });
 
 // Sincronização geral
@@ -216,11 +225,25 @@ app.post('/api/sync', (req, res) => {
     const payload = req.body;
     const db = lerBanco();
 
+    if (Array.isArray(payload.idsExcluidos)) {
+      payload.idsExcluidos.forEach((id) => {
+        if (id && !db.idsExcluidos.includes(id)) {
+          db.idsExcluidos.push(id);
+        }
+      });
+      if (db.idsExcluidos.length > 2000) {
+        db.idsExcluidos = db.idsExcluidos.slice(-2000);
+      }
+    }
+
+    const setExcluidos = new Set(db.idsExcluidos);
+    db.escoteiros = db.escoteiros.filter((e) => e && e.id && !setExcluidos.has(e.id));
+
     if (Array.isArray(payload.escoteiros)) {
       const mapa = new Map();
-      db.escoteiros.forEach(e => { if (e.id) mapa.set(e.id, e); });
+      db.escoteiros.forEach(e => { if (e.id && !setExcluidos.has(e.id)) mapa.set(e.id, e); });
       payload.escoteiros.forEach(e => {
-        if (e && e.id) {
+        if (e && e.id && !setExcluidos.has(e.id)) {
           const existente = mapa.get(e.id);
           if (!existente) {
             mapa.set(e.id, e);

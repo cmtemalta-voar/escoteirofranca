@@ -104,9 +104,11 @@ export default function App() {
     }
   }, [currentTab, canAccessTab]);
 
-  // Sincronização automática em segundo plano com o servidor central ao iniciar
+  // Sincronização automática em segundo plano com o servidor central ao iniciar (apenas na montagem)
   useEffect(() => {
+    let montado = true;
     storageService.sincronizarComServidor().then((res) => {
+      if (!montado) return;
       if (res.sucesso && res.adicionados > 0) {
         refreshData();
         showToast(`${res.adicionados} nova(s) inscrição(ões) sincronizada(s) do servidor!`);
@@ -114,7 +116,8 @@ export default function App() {
     }).catch(() => {
       // Falha silenciosa no background se estiver offline
     });
-  }, [refreshData]);
+    return () => { montado = false; };
+  }, []); // Executa estritamente uma vez na inicialização
 
   const handleLoginSuccess = (user: UsuarioSistema) => {
     setUsuarioAtual(user);
@@ -166,9 +169,19 @@ export default function App() {
   };
 
   const handleDeleteEscoteiro = (id: string) => {
+    // 1. Remove imediatamente do estado do React para resposta visual instantânea
+    setEscoteiros(prev => prev.filter(e => e.id !== id));
+    if (selectedEscoteiro?.id === id) {
+      setSelectedEscoteiro(null);
+    }
+    if (dossierEscoteiro?.id === id) {
+      setDossierEscoteiro(null);
+    }
+    // 2. Exclui do storage local e registra id nos excluídos permanentemente
     storageService.excluirEscoteiro(id);
+    // 3. Atualiza referências
     refreshData();
-    showToast('Inscrição removida do banco de dados.');
+    showToast('Inscrição excluída com sucesso.');
   };
 
   const handleSelectEscoteiro = (esc: EscoteiroCadastro) => {

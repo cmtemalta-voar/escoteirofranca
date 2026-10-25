@@ -5,8 +5,8 @@ import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-const PORT = Number(process.env.PORT) || 3000;
+// Dev server must run on port 3000 (Cloud Run sets PORT=8080 which is used by the system proxy)
+const PORT = 3000;
 const DB_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DB_DIR, 'database.json');
 const distPath = path.join(__dirname, 'dist');
@@ -36,6 +36,7 @@ const USUARIO_ADMIN_DEFAULT = {
 
 interface DatabaseSchema {
   escoteiros: any[];
+  idsExcluidos: string[];
   contribuicoes: any[];
   filiacoes: any[];
   eventos: any[];
@@ -49,6 +50,7 @@ interface DatabaseSchema {
 function getDatabaseDefaults(): DatabaseSchema {
   return {
     escoteiros: [],
+    idsExcluidos: [],
     contribuicoes: [],
     filiacoes: [],
     eventos: [],
@@ -78,6 +80,7 @@ function lerBanco(): DatabaseSchema {
     }
     return {
       escoteiros: Array.isArray(parsed.escoteiros) ? parsed.escoteiros : [],
+      idsExcluidos: Array.isArray(parsed.idsExcluidos) ? parsed.idsExcluidos : [],
       contribuicoes: Array.isArray(parsed.contribuicoes) ? parsed.contribuicoes : [],
       filiacoes: Array.isArray(parsed.filiacoes) ? parsed.filiacoes : [],
       eventos: Array.isArray(parsed.eventos) ? parsed.eventos : [],
@@ -172,6 +175,8 @@ export async function createServer() {
       const agora = new Date().toISOString();
 
       if (cadastro.id) {
+        // Se estava na lista de excluídos, remove para permitir restauração/recriação
+        db.idsExcluidos = db.idsExcluidos.filter(id => id !== cadastro.id);
         const index = db.escoteiros.findIndex((e: any) => e.id === cadastro.id);
         if (index !== -1) {
           const atualizado = {
@@ -191,9 +196,13 @@ export async function createServer() {
       // Novo cadastro permanente
       const count = db.escoteiros.length + 1;
       const numeroRegistro = cadastro.fichaMedica?.numeroRegistro || `GET-2026-${String(count).padStart(3, '0')}`;
+      const novoId = cadastro.id || `esc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      // Garante que o novo ID não esteja marcado como excluído
+      db.idsExcluidos = db.idsExcluidos.filter(id => id !== novoId);
+
       const novo = {
         ...cadastro,
-        id: cadastro.id || `esc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        id: novoId,
         criadoEm: agora,
         atualizadoEm: agora,
         fichaMedica: {
@@ -212,19 +221,22 @@ export async function createServer() {
     }
   });
 
-  // 4. Excluir ficha de escoteiro
+  // 4. Excluir ficha de escoteiro com registro permanente em idsExcluidos
   app.delete('/api/escoteiros/:id', (req: Request, res: Response) => {
     const { id } = req.params;
     const db = lerBanco();
     const anterior = db.escoteiros.length;
     db.escoteiros = db.escoteiros.filter((e: any) => e.id !== id);
-    if (db.escoteiros.length < anterior) {
-      salvarBanco(db);
-      console.log(`[API] Registro excluído do servidor: ${id}`);
-      res.json({ sucesso: true, id });
-    } else {
-      res.status(404).json({ erro: 'Registro não encontrado para exclusão.' });
+    if (!db.idsExcluidos.includes(id)) {
+      db.idsExcluidos.push(id);
+      // Mantém últimos 2000 IDs excluídos
+      if (db.idsExcluidos.length > 2000) {
+        db.idsExcluidos = db.idsExcluidos.slice(-2000);
+      }
     }
+    salvarBanco(db);
+    console.log(`[API] Registro excluído do servidor com tombstone permanente: ${id}`);
+    res.json({ sucesso: true, id });
   });
 
   // 5. Sincronização integral bidirecional (dados locais <-> servidor central)
@@ -238,16 +250,33 @@ export async function createServer() {
       const payload = req.body;
       const db = lerBanco();
 
-      // Mescla escoteiros recebidos com os do servidor sem duplicar IDs
+      // Mescla IDs excluídos reportados pelo cliente
+      if (Array.isArray(payload.idsExcluidos)) {
+        payload.idsExcluidos.forEach((id: string) => {
+          if (id && !db.idsExcluidos.includes(id)) {
+            db.idsExcluidos.push(id);
+          }
+        });
+        if (db.idsExcluidos.length > 2000) {
+          db.idsExcluidos = db.idsExcluidos.slice(-2000);
+        }
+      }
+
+      const setExcluidos = new Set(db.idsExcluidos);
+
+      // Limpa do servidor quaisquer registros marcados como excluídos
+      db.escoteiros = db.escoteiros.filter((e: any) => e && e.id && !setExcluidos.has(e.id));
+
+      // Mescla escoteiros recebidos com os do servidor sem duplicar IDs e NUNCA ressuscitando excluídos
       if (Array.isArray(payload.escoteiros)) {
         const mapa = new Map<string, any>();
-        // Primeiro coloca os do servidor
+        // Primeiro coloca os do servidor válidos
         db.escoteiros.forEach(e => {
-          if (e.id) mapa.set(e.id, e);
+          if (e.id && !setExcluidos.has(e.id)) mapa.set(e.id, e);
         });
         // Mescla com os recebidos do cliente
         payload.escoteiros.forEach((e: any) => {
-          if (e && e.id) {
+          if (e && e.id && !setExcluidos.has(e.id)) {
             const existente = mapa.get(e.id);
             if (!existente) {
               mapa.set(e.id, e);
@@ -323,7 +352,10 @@ export async function createServer() {
   if (!isProd) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: false,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);

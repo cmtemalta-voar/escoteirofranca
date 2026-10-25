@@ -26,6 +26,7 @@ const KEY_USUARIOS = 'get_22_fevereiro_usuarios_db';
 const KEY_SESSAO_ATIVA = 'get_22_fevereiro_sessao_ativa';
 const KEY_REMOTE_API_URL = 'get_22_api_remote_url';
 const KEY_LAST_SYNC = 'get_22_last_sync_timestamp';
+const KEY_IDS_EXCLUIDOS = 'get_22_fevereiro_ids_excluidos';
 
 export const USUARIOS_INICIAIS: UsuarioSistema[] = [
   {
@@ -93,6 +94,39 @@ if (typeof window !== 'undefined') {
 }
 
 export const storageService = {
+  getIdsExcluidos(): string[] {
+    try {
+      const data = localStorage.getItem(KEY_IDS_EXCLUIDOS);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  registrarIdExcluido(id: string): void {
+    try {
+      if (!id) return;
+      const ids = this.getIdsExcluidos();
+      if (!ids.includes(id)) {
+        ids.push(id);
+        const trimmed = ids.slice(-2000);
+        localStorage.setItem(KEY_IDS_EXCLUIDOS, JSON.stringify(trimmed));
+      }
+    } catch (e) {
+      console.warn('Erro ao registrar ID excluído:', e);
+    }
+  },
+
+  removerIdExcluido(id: string): void {
+    try {
+      if (!id) return;
+      const ids = this.getIdsExcluidos().filter(item => item !== id);
+      localStorage.setItem(KEY_IDS_EXCLUIDOS, JSON.stringify(ids));
+    } catch (e) {
+      console.warn('Erro ao remover ID excluído:', e);
+    }
+  },
+
   getEscoteiros(): EscoteiroCadastro[] {
     try {
       const data = localStorage.getItem(STORAGE_KEY);
@@ -104,7 +138,10 @@ export const storageService = {
       if (!Array.isArray(parsed) || parsed.length === 0) {
         return [];
       }
-      return parsed.map((e: EscoteiroCadastro) => ({
+      const idsExcluidos = new Set(this.getIdsExcluidos());
+      return parsed
+        .filter((e: EscoteiroCadastro) => e && e.id && !idsExcluidos.has(e.id))
+        .map((e: EscoteiroCadastro) => ({
         ...e,
         fichaMedica: {
           ...e.fichaMedica,
@@ -125,6 +162,9 @@ export const storageService = {
   },
 
   salvarEscoteiro(cadastro: Omit<EscoteiroCadastro, 'id' | 'criadoEm' | 'atualizadoEm'> & { id?: string }): EscoteiroCadastro {
+    if (cadastro.id) {
+      this.removerIdExcluido(cadastro.id);
+    }
     const list = this.getEscoteiros();
     const agora = new Date().toISOString();
 
@@ -140,16 +180,20 @@ export const storageService = {
         };
         list[index] = atualizado;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+        this.enviarParaServidorAsync(atualizado);
         return atualizado;
       }
     }
 
     // Novo cadastro
     const count = list.length + 1;
-    const novoRegistro = cadastro.fichaMedica.numeroRegistro || `GET-2026-${String(count).padStart(3, '0')}`;
+    const novoRegistro = cadastro.fichaMedica?.numeroRegistro || `GET-2026-${String(count).padStart(3, '0')}`;
+    const novoId = cadastro.id || `esc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    this.removerIdExcluido(novoId);
+
     const novo: EscoteiroCadastro = {
       ...cadastro,
-      id: `esc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: novoId,
       criadoEm: agora,
       atualizadoEm: agora,
       fichaMedica: {
@@ -165,11 +209,12 @@ export const storageService = {
   },
 
   excluirEscoteiro(id: string): boolean {
+    this.registrarIdExcluido(id);
     const list = this.getEscoteiros();
     const filtered = list.filter(e => e.id !== id);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
     this.excluirDoServidorAsync(id);
-    return filtered.length < list.length;
+    return true;
   },
 
   getEscoteiroPorId(id: string): EscoteiroCadastro | undefined {
@@ -189,6 +234,7 @@ export const storageService = {
     localStorage.setItem(KEY_PARTICIPACOES, JSON.stringify([]));
     localStorage.setItem(KEY_UNIFORMES, JSON.stringify([]));
     localStorage.setItem(KEY_USUARIOS, JSON.stringify(USUARIOS_INICIAIS));
+    localStorage.removeItem(KEY_IDS_EXCLUIDOS);
     this.definirSessaoAtual(USUARIOS_INICIAIS[0]);
     this.resetarServidorAsync();
   },
@@ -856,21 +902,30 @@ export const storageService = {
       }
 
       const dbServidor = await respGet.json();
-      const escoteirosServidor: EscoteiroCadastro[] = Array.isArray(dbServidor.escoteiros) ? dbServidor.escoteiros : [];
-      const escoteirosLocais = this.getEscoteiros();
+      
+      // Sincroniza IDs excluídos
+      if (Array.isArray(dbServidor.idsExcluidos)) {
+        dbServidor.idsExcluidos.forEach((id: string) => this.registrarIdExcluido(id));
+      }
+      const setExcluidos = new Set(this.getIdsExcluidos());
 
-      // Mescla inteligente: reúne registros locais e do servidor sem perdas
+      const escoteirosServidor: EscoteiroCadastro[] = Array.isArray(dbServidor.escoteiros) 
+        ? dbServidor.escoteiros.filter((e: any) => e && e.id && !setExcluidos.has(e.id))
+        : [];
+      const escoteirosLocais = this.getEscoteiros().filter(e => e && e.id && !setExcluidos.has(e.id));
+
+      // Mescla inteligente: reúne registros locais e do servidor sem perdas e sem ressuscitar excluídos
       const mapa = new Map<string, EscoteiroCadastro>();
       
-      // Adiciona locais
+      // Adiciona locais válidos
       escoteirosLocais.forEach(e => {
-        if (e.id) mapa.set(e.id, e);
+        if (e.id && !setExcluidos.has(e.id)) mapa.set(e.id, e);
       });
 
       let novosDoServidor = 0;
-      // Mescla com os do servidor
+      // Mescla com os do servidor que não foram excluídos
       escoteirosServidor.forEach(e => {
-        if (e.id) {
+        if (e.id && !setExcluidos.has(e.id)) {
           const local = mapa.get(e.id);
           if (!local) {
             mapa.set(e.id, e);
@@ -889,12 +944,13 @@ export const storageService = {
       const listaMesclada = Array.from(mapa.values());
       localStorage.setItem(STORAGE_KEY, JSON.stringify(listaMesclada));
 
-      // 2. Envia a base mesclada de volta ao servidor para que ele também guarde dados criados localmente
+      // 2. Envia a base mesclada de volta ao servidor junto com a lista de IDs excluídos
       await fetch(endpointSync, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           escoteiros: listaMesclada,
+          idsExcluidos: Array.from(setExcluidos),
           contribuicoes: this.getContribuicoes(),
           filiacoes: this.getFiliacoes(),
           eventos: this.getEventos(),

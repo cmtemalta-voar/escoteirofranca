@@ -1,5 +1,6 @@
 {
   "escoteiros": [],
+  "idsExcluidos": [],
   "contribuicoes": [],
   "filiacoes": [],
   "eventos": [],
@@ -28,6 +29,6 @@
       "criadoEm": "2026-01-01T08:00:00.000Z"
     }
   ],
-  "ultimaAtualizacao": "2026-10-24T16:41:30.643Z",
+  "ultimaAtualizacao": "2026-10-25T17:03:51.415Z",
   "versaoBanco": "1.0.0"
 }
